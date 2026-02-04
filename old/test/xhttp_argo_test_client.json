@@ -1,0 +1,54 @@
+{
+  "log": {
+    "loglevel": "debug"
+  },
+  "inbounds": [
+    {
+      "tag": "socks-in",
+      "listen": "127.0.0.1",
+      "port": 1080,
+      "protocol": "socks",
+      "settings": {
+        "udp": true
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "vmess-xhttp-argo",
+      "protocol": "vmess",
+      "settings": {
+        "vnext": [
+          {
+            "address": "your-argo-domain.trycloudflare.com",
+            "port": 443,
+            "users": [
+              {
+                "id": "your-uuid-here"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "xhttp",
+        "security": "tls",
+        "tlsSettings": {
+          "serverName": "your-argo-domain.trycloudflare.com",
+          "fingerprint": "chrome"
+        },
+        "xhttpSettings": {
+          "path": "/vmess-xhttp",
+          "mode": "packet-up",
+          "extra": {
+            "xPaddingBytes": ["100-1000"]
+          }
+        }
+      }
+    },
+    {
+      "protocol": "freedom",
+      "tag": "direct"
+    }
+  ]
+}

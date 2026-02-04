@@ -1,0 +1,36 @@
+{
+  "log": {
+    "loglevel": "debug"
+  },
+  "inbounds": [
+    {
+      "tag": "vmess-xhttp-argo",
+      "listen": "::",
+      "port": 8080,
+      "protocol": "vmess",
+      "settings": {
+        "clients": [
+          {
+            "id": "your-uuid-here"
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "xhttp",
+        "xhttpSettings": {
+          "path": "/vmess-xhttp",
+          "mode": "packet-up",
+          "extra": {
+            "xPaddingBytes": ["100-1000"]
+          }
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "tag": "direct"
+    }
+  ]
+}
