@@ -43,7 +43,7 @@ check_system_compatibility() {
 
 install_dependencies() {
     log_info "检查并安装依赖..."
-    local deps="curl wget unzip"
+    local deps="curl unzip"
     
     # Simple check function
     check_cmd() { command -v "$1" >/dev/null 2>&1; }
@@ -169,22 +169,13 @@ download_file() {
 
     log_info "$description: $url"
 
-    if command -v curl >/dev/null 2>&1; then
-        if curl -Lo "$output" -# --retry 3 --retry-delay 2 "$url" 2>&1 | tee -a "$HOME/agsbx/argosbx.log" >/dev/null; then
-            log_info "下载成功: $output"
-            return 0
-        fi
+    if curl -Lo "$output" -# --retry 3 --retry-delay 2 "$url" 2>&1 | tee -a "$HOME/agsbx/argosbx.log" >/dev/null; then
+        log_info "下载成功: $output"
+        return 0
+    else
+        log_error "下载失败"
+        return 1
     fi
-
-    if command -v wget >/dev/null 2>&1; then
-        if timeout 30 wget -O "$output" --tries=3 "$url" 2>&1 | tee -a "$HOME/agsbx/argosbx.log" >/dev/null; then
-            log_info "下载成功: $output"
-            return 0
-        fi
-    fi
-
-    log_error "下载失败"
-    return 1
 }
 
 download_official_release() {
@@ -200,11 +191,7 @@ download_official_release() {
     local latest_url="https://api.github.com/repos/$repo/releases/latest"
     local version=""
 
-    if command -v curl > /dev/null 2>&1; then
-        version=$(curl -sL "$latest_url" | grep -o '"tag_name": *"[^"]*"' | sed 's/"tag_name": *"\(.*\)"/\1/')
-    elif command -v wget > /dev/null 2>&1; then
-        version=$(wget -qO- "$latest_url" | grep -o '"tag_name": *"[^"]*"' | sed 's/"tag_name": *"\(.*\)"/\1/')
-    fi
+    version=$(curl -sL "$latest_url" | grep -o '"tag_name": *"[^"]*"' | sed 's/"tag_name": *"\(.*\)"/\1/')
 
     if [ -z "$version" ]; then
         log_error "无法获取最新版本信息"

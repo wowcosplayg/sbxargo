@@ -58,17 +58,30 @@ generate_xray_keys() {
     # Reality Keys
     if [ -n "$xhp" ] || [ -n "$vlp" ]; then
         if [ -z "$ym_vl_re" ]; then ym_vl_re=apple.com; fi
-        echo "$ym_vl_re" > "$HOME/agsbx/ym_vl_re"
+        update_config_var "ym_vl_re" "$ym_vl_re"
         
         if [ ! -e "$HOME/agsbx/xrk/private_key" ]; then
             key_pair=$("$HOME/agsbx/xray" x25519)
             private_key=$(echo "$key_pair" | grep "PrivateKey" | awk '{print $2}')
             public_key=$(echo "$key_pair" | grep "Password" | awk '{print $2}')
             short_id=$(date +%s%N | sha256sum | cut -c 1-8)
-            echo "$private_key" > "$HOME/agsbx/xrk/private_key"
-            echo "$public_key" > "$HOME/agsbx/xrk/public_key"
-            echo "$short_id" > "$HOME/agsbx/xrk/short_id"
+            
+            # Persist to config
+            update_config_var "xray_key_private" "$private_key"
+            update_config_var "xray_key_public" "$public_key"
+            update_config_var "xray_key_shortid" "$short_id"
+        else
+            # If not regenerating, ensure loaded (for safety)
+            private_key="${xray_key_private}"
+            public_key="${xray_key_public}"
+            short_id="${xray_key_shortid}"
         fi
+        
+        # Write to temp files for internal Xray consistency/fallback if needed by other tools?
+        # Ideally we shouldn't need them anymore, but let's keep the key files for purely Xray internal use if referenced by config?
+        # The xray config references "$private_key_x" which is an env var.
+        # But wait, generate_xray_keys sets `private_key` then exports `private_key_x`.
+        # Let's adjust the export section below.
     fi
     
     # Encryption Keys for VLESS
@@ -77,17 +90,20 @@ generate_xray_keys() {
             vlkey=$("$HOME/agsbx/xray" vlessenc)
             dekey=$(echo "$vlkey" | grep '"decryption":' | sed -n '2p' | cut -d' ' -f2- | tr -d '"')
             enkey=$(echo "$vlkey" | grep '"encryption":' | sed -n '2p' | cut -d' ' -f2- | tr -d '"')
-            echo "$dekey" > "$HOME/agsbx/xrk/dekey"
-            echo "$enkey" > "$HOME/agsbx/xrk/enkey"
+            dekey=$(echo "$vlkey" | grep '"decryption":' | sed -n '2p' | cut -d' ' -f2- | tr -d '"')
+            enkey=$(echo "$vlkey" | grep '"encryption":' | sed -n '2p' | cut -d' ' -f2- | tr -d '"')
+            
+            update_config_var "xray_key_de" "$dekey"
+            update_config_var "xray_key_en" "$enkey"
         fi
     fi
     
     # Export for current session
-    export private_key_x=$(cat "$HOME/agsbx/xrk/private_key" 2>/dev/null)
-    export public_key_x=$(cat "$HOME/agsbx/xrk/public_key" 2>/dev/null)
-    export short_id_x=$(cat "$HOME/agsbx/xrk/short_id" 2>/dev/null)
-    export dekey=$(cat "$HOME/agsbx/xrk/dekey" 2>/dev/null)
-    export enkey=$(cat "$HOME/agsbx/xrk/enkey" 2>/dev/null)
+    export private_key_x="${xray_key_private}"
+    export public_key_x="${xray_key_public}"
+    export short_id_x="${xray_key_shortid}"
+    export dekey="${xray_key_de}"
+    export enkey="${xray_key_en}"
 }
 
 init_xray_config() {
@@ -105,11 +121,11 @@ add_reality_xray() {
     
     if [ -z "$port_vl_re" ] && [ ! -e "$HOME/agsbx/port_vl_re" ]; then
         port_vl_re=$(shuf -i 10000-65535 -n 1)
-        echo "$port_vl_re" > "$HOME/agsbx/port_vl_re"
+        update_config_var "port_vl_re" "$port_vl_re"
     elif [ -n "$port_vl_re" ]; then
-        echo "$port_vl_re" > "$HOME/agsbx/port_vl_re"
+        update_config_var "port_vl_re" "$port_vl_re"
     fi
-    port_vl_re=$(cat "$HOME/agsbx/port_vl_re")
+    LOG_MARKER_VLESS_REALITY="active"
     
     log_info "添加 Vless-Reality: $port_vl_re"
     
@@ -155,11 +171,11 @@ add_xhttp_xray() {
     if [ -n "$xhp" ]; then
         if [ -z "$port_xh" ] && [ ! -e "$HOME/agsbx/port_xh" ]; then
             port_xh=$(shuf -i 10000-65535 -n 1)
-            echo "$port_xh" > "$HOME/agsbx/port_xh"
+            update_config_var "port_xh" "$port_xh"
         elif [ -n "$port_xh" ]; then
-            echo "$port_xh" > "$HOME/agsbx/port_xh"
+            update_config_var "port_xh" "$port_xh"
         fi
-        port_xh=$(cat "$HOME/agsbx/port_xh")
+
         log_info "添加 Vless-xhttp-reality: $port_xh"
         
         cat >> "$HOME/agsbx/xr.json" <<EOF
@@ -207,15 +223,15 @@ EOF
     if [ -n "$vxp" ]; then
         if [ -z "$port_vx" ] && [ ! -e "$HOME/agsbx/port_vx" ]; then
             port_vx=$(shuf -i 10000-65535 -n 1)
-            echo "$port_vx" > "$HOME/agsbx/port_vx"
+            update_config_var "port_vx" "$port_vx"
         elif [ -n "$port_vx" ]; then
-            echo "$port_vx" > "$HOME/agsbx/port_vx"
+            update_config_var "port_vx" "$port_vx"
         fi
-        port_vx=$(cat "$HOME/agsbx/port_vx")
+
         log_info "添加 Vless-xhttp: $port_vx"
         
         if [ -n "$cdnym" ]; then
-            echo "$cdnym" > "$HOME/agsbx/cdnym"
+            update_config_var "cdnym" "$cdnym"
         fi
         
         cat >> "$HOME/agsbx/xr.json" <<EOF
@@ -253,15 +269,15 @@ EOF
     if [ -n "$vwp" ]; then
         if [ -z "$port_vw" ] && [ ! -e "$HOME/agsbx/port_vw" ]; then
             port_vw=$(shuf -i 10000-65535 -n 1)
-            echo "$port_vw" > "$HOME/agsbx/port_vw"
+            update_config_var "port_vw" "$port_vw"
         elif [ -n "$port_vw" ]; then
-            echo "$port_vw" > "$HOME/agsbx/port_vw"
+            update_config_var "port_vw" "$port_vw"
         fi
-        port_vw=$(cat "$HOME/agsbx/port_vw")
+
         log_info "添加 Vless-ws-enc (xhttp mode): $port_vw"
         
         if [ -n "$cdnym" ]; then
-            echo "$cdnym" > "$HOME/agsbx/cdnym"
+            update_config_var "cdnym" "$cdnym"
         fi
         
         cat >> "$HOME/agsbx/xr.json" <<EOF
@@ -300,15 +316,15 @@ add_vmess_xray() {
     
     if [ -z "$port_vm_ws" ] && [ ! -e "$HOME/agsbx/port_vm_ws" ]; then
         port_vm_ws=$(shuf -i 10000-65535 -n 1)
-        echo "$port_vm_ws" > "$HOME/agsbx/port_vm_ws"
+        update_config_var "port_vm_ws" "$port_vm_ws"
     elif [ -n "$port_vm_ws" ]; then
-        echo "$port_vm_ws" > "$HOME/agsbx/port_vm_ws"
+        update_config_var "port_vm_ws" "$port_vm_ws"
     fi
-    port_vm_ws=$(cat "$HOME/agsbx/port_vm_ws")
+
     log_info "添加 Vmess-xhttp: $port_vm_ws"
     
     if [ -n "$cdnym" ]; then
-        echo "$cdnym" > "$HOME/agsbx/cdnym"
+        update_config_var "cdnym" "$cdnym"
     fi
     
     cat >> "$HOME/agsbx/xr.json" <<EOF
@@ -345,11 +361,12 @@ add_socks_xray() {
     
     if [ -z "$port_so" ] && [ ! -e "$HOME/agsbx/port_so" ]; then
         port_so=$(shuf -i 10000-65535 -n 1)
-        echo "$port_so" > "$HOME/agsbx/port_so"
+        port_so=$(shuf -i 10000-65535 -n 1)
+        update_config_var "port_so" "$port_so"
     elif [ -n "$port_so" ]; then
-        echo "$port_so" > "$HOME/agsbx/port_so"
+        update_config_var "port_so" "$port_so"
     fi
-    port_so=$(cat "$HOME/agsbx/port_so")
+
     log_info "添加 Socks5: $port_so"
     
     cat >> "$HOME/agsbx/xr.json" <<EOF

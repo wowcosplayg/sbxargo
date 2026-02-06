@@ -20,7 +20,20 @@ echo "推荐方案：VLESS-Reality + Hysteria2 + Tuic V5"
 echo ""
 
 # 1. Run Interactive Configuration Wizard
-interactive_config
+if [ -f "$HOME/agsbx/config.env" ] && [ -s "$HOME/agsbx/config.env" ]; then
+    echo "检测到已存在配置文件: $HOME/agsbx/config.env"
+    read -p "是否直接使用现有配置进行部署? (y/n, 默认: y): " use_existing
+    use_existing=${use_existing:-y}
+    
+    if [[ "$use_existing" == "y" ]]; then
+        load_config
+        log_info "已加载现有配置，跳过设置向导。"
+    else
+        interactive_config
+    fi
+else
+    interactive_config
+fi
 
 # 2. Deployment Method Selection
 echo "---------------------------------------------------------"
@@ -58,27 +71,12 @@ if [[ "$deploy_method" == "2" ]]; then
     # Remove old container if exists
     docker rm -f argosbx 2>/dev/null
     
-    # Map variables (Ensure empty vars are not passed as empty string but handle correctly)
-    # Actually, pass all enabled vars
-    DOCKER_CMD="docker run -d --name argosbx --restart=always --network=host -v $HOME/agsbx:/root/agsbx"
+    # 配置文件已由 interactive_config 生成至 $HOME/agsbx/config.env
     
-    [ -n "$uuid" ] && DOCKER_CMD="$DOCKER_CMD -e uuid=$uuid"
-    [ -n "$vlp" ] && DOCKER_CMD="$DOCKER_CMD -e vlpt=${port_vl_re:-yes}"
-    [ -n "$hyp" ] && DOCKER_CMD="$DOCKER_CMD -e hypt=${port_hy2:-yes}"
-    [ -n "$tup" ] && DOCKER_CMD="$DOCKER_CMD -e tupt=${port_tu:-yes}"
-    [ -n "$ssp" ] && DOCKER_CMD="$DOCKER_CMD -e sspt=${port_ss:-yes}"
-    [ -n "$sop" ] && DOCKER_CMD="$DOCKER_CMD -e sopt=${port_so:-yes}"
-    [ -n "$vmp" ] && DOCKER_CMD="$DOCKER_CMD -e vmpt=${port_vm_ws:-yes}"
-    [ -n "$xhp" ] && DOCKER_CMD="$DOCKER_CMD -e xhpt=${port_xh:-yes}"
+    log_info "正在启动 Docker 容器..."
+    DOCKER_CMD="docker run -d --name argosbx --restart=always --network=host -v $HOME/agsbx:/root/agsbx argosbx-image"
     
-    # Argo/Warp
-    [ -n "$argo" ] && DOCKER_CMD="$DOCKER_CMD -e argo=$argo"
-    [ -n "$ARGO_AUTH" ] && DOCKER_CMD="$DOCKER_CMD -e agk=$ARGO_AUTH"
-    [ -n "$ARGO_DOMAIN" ] && DOCKER_CMD="$DOCKER_CMD -e agn=$ARGO_DOMAIN"
-    [ -n "$warp" ] && DOCKER_CMD="$DOCKER_CMD -e warp=$warp"
-    
-    DOCKER_CMD="$DOCKER_CMD argosbx-image"
-    
+    echo "执行命令: $DOCKER_CMD"
     echo "执行命令: $DOCKER_CMD"
     eval "$DOCKER_CMD"
     

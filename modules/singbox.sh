@@ -70,7 +70,7 @@ generate_singbox_keys() {
     if [ ! -f "$HOME/agsbx/private.key" ] || [ ! -f "$HOME/agsbx/cert.pem" ]; then
         if command -v openssl >/dev/null 2>&1; then
             local random_cn=$(openssl rand -hex 8).com
-            echo "$random_cn" > "$HOME/agsbx/cert_cn"
+            update_config_var "cert_cn" "$random_cn"
             openssl ecparam -genkey -name prime256v1 -out "$HOME/agsbx/private.key" >/dev/null 2>&1
             openssl req -new -x509 -days 36500 -key "$HOME/agsbx/private.key" -out "$HOME/agsbx/cert.pem" -subj "/CN=$random_cn" >/dev/null 2>&1
         else
@@ -82,7 +82,7 @@ generate_singbox_keys() {
     # Reality Keys
     if [ -n "$arp" ]; then
         if [ -z "$ym_vl_re" ]; then ym_vl_re=apple.com; fi
-        echo "$ym_vl_re" > "$HOME/agsbx/ym_vl_re"
+        update_config_var "ym_vl_re" "$ym_vl_re"
         
         mkdir -p "$HOME/agsbx/sbk"
         if [ ! -e "$HOME/agsbx/sbk/private_key" ]; then
@@ -90,9 +90,14 @@ generate_singbox_keys() {
             private_key=$(echo "$key_pair" | awk '/PrivateKey/ {print $2}' | tr -d '"')
             public_key=$(echo "$key_pair" | awk '/PublicKey/ {print $2}' | tr -d '"')
             short_id=$("$HOME/agsbx/sing-box" generate rand --hex 4)
-            echo "$private_key" > "$HOME/agsbx/sbk/private_key"
-            echo "$public_key" > "$HOME/agsbx/sbk/public_key"
-            echo "$short_id" > "$HOME/agsbx/sbk/short_id"
+            
+            update_config_var "singbox_key_private" "$private_key"
+            update_config_var "singbox_key_public" "$public_key"
+            update_config_var "singbox_key_shortid" "$short_id"
+        else
+            private_key="${singbox_key_private}"
+            public_key="${singbox_key_public}"
+            short_id="${singbox_key_shortid}"
         fi
     fi
      
@@ -100,20 +105,21 @@ generate_singbox_keys() {
     if [ -n "$ssp" ]; then
         if [ ! -e "$HOME/agsbx/sskey" ]; then
             sskey=$("$HOME/agsbx/sing-box" generate rand 32 --base64)
-            echo "$sskey" > "$HOME/agsbx/sskey"
+            sskey=$("$HOME/agsbx/sing-box" generate rand 32 --base64)
+            update_config_var "sskey" "$sskey"
         fi
     fi
     
-    export private_key_s=$(cat "$HOME/agsbx/sbk/private_key" 2>/dev/null)
-    export public_key_s=$(cat "$HOME/agsbx/sbk/public_key" 2>/dev/null)
-    export short_id_s=$(cat "$HOME/agsbx/sbk/short_id" 2>/dev/null)
-    export short_id_s=$(cat "$HOME/agsbx/sbk/short_id" 2>/dev/null)
-    export sskey=$(cat "$HOME/agsbx/sskey" 2>/dev/null)
+    export private_key_s="${singbox_key_private}"
+    export public_key_s="${singbox_key_public}"
+    export short_id_s="${singbox_key_shortid}"
+    export sskey="${sskey}"
     
     # Calculate SHA256 Fingerprint for Pinning (Fixes allowInsecure warning)
     if [ -f "$HOME/agsbx/cert.pem" ] && command -v openssl >/dev/null 2>&1; then
         cert_sha256=$(openssl x509 -noout -fingerprint -sha256 -in "$HOME/agsbx/cert.pem" | awk -F= '{print $2}' | tr -d : | tr '[:upper:]' '[:lower:]')
         echo "$cert_sha256" > "$HOME/agsbx/cert_sha256"
+        update_config_var "cert_sha256" "$cert_sha256"
         export cert_sha256
     fi
 }
@@ -135,11 +141,10 @@ add_hysteria2_singbox() {
     
     if [ -z "$port_hy2" ] && [ ! -e "$HOME/agsbx/port_hy2" ]; then
         port_hy2=$(shuf -i 10000-65535 -n 1)
-        echo "$port_hy2" > "$HOME/agsbx/port_hy2"
+        update_config_var "port_hy2" "$port_hy2"
     elif [ -n "$port_hy2" ]; then
-        echo "$port_hy2" > "$HOME/agsbx/port_hy2"
+        update_config_var "port_hy2" "$port_hy2"
     fi
-    port_hy2=$(cat "$HOME/agsbx/port_hy2")
     log_info "添加 Hysteria2: $port_hy2"
     
     cat >> "$HOME/agsbx/sb.json" <<EOF
@@ -171,11 +176,10 @@ add_tuic_singbox() {
     
     if [ -z "$port_tu" ] && [ ! -e "$HOME/agsbx/port_tu" ]; then
         port_tu=$(shuf -i 10000-65535 -n 1)
-        echo "$port_tu" > "$HOME/agsbx/port_tu"
+        update_config_var "port_tu" "$port_tu"
     elif [ -n "$port_tu" ]; then
-        echo "$port_tu" > "$HOME/agsbx/port_tu"
+        update_config_var "port_tu" "$port_tu"
     fi
-    port_tu=$(cat "$HOME/agsbx/port_tu")
     log_info "添加 Tuic: $port_tu"
     
     cat >> "$HOME/agsbx/sb.json" <<EOF
@@ -207,11 +211,10 @@ add_anytls_singbox() {
     [ -z "$anp" ] && return
     if [ -z "$port_an" ] && [ ! -e "$HOME/agsbx/port_an" ]; then
         port_an=$(shuf -i 10000-65535 -n 1)
-        echo "$port_an" > "$HOME/agsbx/port_an"
+        update_config_var "port_an" "$port_an"
     elif [ -n "$port_an" ]; then
-        echo "$port_an" > "$HOME/agsbx/port_an"
+        update_config_var "port_an" "$port_an"
     fi
-    port_an=$(cat "$HOME/agsbx/port_an")
     log_info "添加 Anytls: $port_an"
     
     cat >> "$HOME/agsbx/sb.json" <<EOF
@@ -222,6 +225,7 @@ add_anytls_singbox() {
             "listen_port":${port_an},
             "users":[
                 {
+                  "name": "${uuid}",
                   "password":"${uuid}"
                 }
             ],
@@ -240,11 +244,10 @@ add_anyreality_singbox() {
     
     if [ -z "$port_ar" ] && [ ! -e "$HOME/agsbx/port_ar" ]; then
         port_ar=$(shuf -i 10000-65535 -n 1)
-        echo "$port_ar" > "$HOME/agsbx/port_ar"
+        update_config_var "port_ar" "$port_ar"
     elif [ -n "$port_ar" ]; then
-        echo "$port_ar" > "$HOME/agsbx/port_ar"
+        update_config_var "port_ar" "$port_ar"
     fi
-    port_ar=$(cat "$HOME/agsbx/port_ar")
     log_info "添加 Any-Reality: $port_ar"
     
     cat >> "$HOME/agsbx/sb.json" <<EOF
@@ -280,11 +283,10 @@ add_shadowsocks_singbox() {
     [ -z "$ssp" ] && return
     if [ -z "$port_ss" ] && [ ! -e "$HOME/agsbx/port_ss" ]; then
         port_ss=$(shuf -i 10000-65535 -n 1)
-        echo "$port_ss" > "$HOME/agsbx/port_ss"
+        update_config_var "port_ss" "$port_ss"
     elif [ -n "$port_ss" ]; then
-        echo "$port_ss" > "$HOME/agsbx/port_ss"
+        update_config_var "port_ss" "$port_ss"
     fi
-    port_ss=$(cat "$HOME/agsbx/port_ss")
     log_info "添加 Shadowsocks: $port_ss"
     
     cat >> "$HOME/agsbx/sb.json" <<EOF
@@ -310,11 +312,10 @@ add_vmess_singbox() {
     
     if [ -z "$port_vm_ws" ] && [ ! -e "$HOME/agsbx/port_vm_ws" ]; then
         port_vm_ws=$(shuf -i 10000-65535 -n 1)
-        echo "$port_vm_ws" > "$HOME/agsbx/port_vm_ws"
+        update_config_var "port_vm_ws" "$port_vm_ws"
     elif [ -n "$port_vm_ws" ]; then
-        echo "$port_vm_ws" > "$HOME/agsbx/port_vm_ws"
+        update_config_var "port_vm_ws" "$port_vm_ws"
     fi
-    port_vm_ws=$(cat "$HOME/agsbx/port_vm_ws")
     log_info "添加 Vmess (Sing-box): $port_vm_ws"
     
     cat >> "$HOME/agsbx/sb.json" <<EOF
@@ -341,11 +342,10 @@ add_socks_singbox() {
     [ -z "$sop" ] && return
     if [ -z "$port_so" ] && [ ! -e "$HOME/agsbx/port_so" ]; then
         port_so=$(shuf -i 10000-65535 -n 1)
-        echo "$port_so" > "$HOME/agsbx/port_so"
+        update_config_var "port_so" "$port_so"
     elif [ -n "$port_so" ]; then
-        echo "$port_so" > "$HOME/agsbx/port_so"
+        update_config_var "port_so" "$port_so"
     fi
-    port_so=$(cat "$HOME/agsbx/port_so")
     log_info "添加 Socks5 (Sing-box): $port_so"
     
     cat >> "$HOME/agsbx/sb.json" <<EOF

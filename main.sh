@@ -23,6 +23,8 @@ install_flow() {
     
     # 1. System Check
     check_system_compatibility
+    get_server_ip
+    
     
     # 2. Install Dependencies
     install_dependencies
@@ -30,12 +32,10 @@ install_flow() {
     # 3. System Optimization
     optimize_system
     
-    # 4. Interactive Configuration
-    # (If type is update, we migth skip prompting if config exists? 
-    # But for now, interactive_config allows keeping existing values easily)
-    interactive_config
+    # 4. Load Configuration (Non-Interactive)
+    load_config
     
-    # Ensure UUID is set (in case interactive/env didn't set it)
+    # Ensure UUID is set
     insuuid
     
     # 5. Core Installation

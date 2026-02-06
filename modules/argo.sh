@@ -41,13 +41,14 @@ configure_argo_tunnel() {
     
     # Set helper file for port
     if [ "$argo" = "vmpt" ]; then 
-        argoport=$(cat "$HOME/agsbx/port_vm_ws" 2>/dev/null)
-        echo "Vmess" > "$HOME/agsbx/vlvm"
+        argoport="${port_vm_ws}"
+        update_config_var "vlvm" "Vmess"
     elif [ "$argo" = "vwpt" ]; then 
-        argoport=$(cat "$HOME/agsbx/port_vw" 2>/dev/null)
-        echo "Vless" > "$HOME/agsbx/vlvm"
+        argoport="${port_vw}"
+        update_config_var "vlvm" "Vless"
     fi
-    echo "$argoport" > "$HOME/agsbx/argoport.log"
+    # Persist argoport for restart capability/logs
+    update_config_var "argoport" "$argoport"
 
     if [ -n "${ARGO_DOMAIN}" ] && [ -n "${ARGO_AUTH}" ]; then
         argoname='固定'
@@ -92,19 +93,19 @@ EOF
             nohup "$HOME/agsbx/cloudflared" tunnel --no-autoupdate --edge-ip-version auto --protocol auto run --token "${ARGO_AUTH}" >/dev/null 2>&1 &
         fi
         
-        echo "${ARGO_DOMAIN}" > "$HOME/agsbx/sbargoym.log"
-        echo "${ARGO_AUTH}" > "$HOME/agsbx/sbargotoken.log"
+        update_config_var "sbargoym" "${ARGO_DOMAIN}"
+        update_config_var "sbargotoken" "${ARGO_AUTH}"
     else
         argoname='临时'
         log_info "申请临时 Argo 隧道"
-        nohup "$HOME/agsbx/cloudflared" tunnel --url http://localhost:$(cat $HOME/agsbx/argoport.log) --edge-ip-version auto --no-autoupdate --protocol auto > $HOME/agsbx/argo.log 2>&1 &
+        nohup "$HOME/agsbx/cloudflared" tunnel --url http://localhost:${argoport} --edge-ip-version auto --no-autoupdate --protocol auto > $HOME/agsbx/argo.log 2>&1 &
     fi
     
     log_info "申请 Argo$argoname 隧道中……请稍等"
     sleep 8
     
     if [ -n "${ARGO_DOMAIN}" ] && [ -n "${ARGO_AUTH}" ]; then
-        argodomain=$(cat "$HOME/agsbx/sbargoym.log" 2>/dev/null)
+        argodomain="${sbargoym}"
     else
         argodomain=$(grep -a trycloudflare.com "$HOME/agsbx/argo.log" 2>/dev/null | awk 'NR==2{print}' | awk -F// '{print $2}' | awk '{print $1}')
     fi

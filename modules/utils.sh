@@ -24,11 +24,19 @@ log_warn() {
 # ============================================================================
 
 get_server_ip() {
+    # Check if manual override IP exists (from Env or Config)
+    if [ -n "$ippz" ]; then
+        log_info "使用预设 IP: $ippz"
+        echo "$ippz" > "$HOME/agsbx/server_ip.log"
+        return
+    fi
+
     log_info "正在获取服务器 IP..."
     local ip=""
     
     # Try IPv4 first
     ip=$(curl -s4m5 https://api.ipify.org)
+    [ -z "$ip" ] && ip=$(curl -s4m5 https://ipv4.icanhazip.com)
     [ -z "$ip" ] && ip=$(curl -s4m5 https://ifconfig.me)
     [ -z "$ip" ] && ip=$(curl -s4m5 https://checkip.amazonaws.com)
     
@@ -491,12 +499,12 @@ EOF
     # Helper to check, print and write to conf
     add_port() {
         local name="$1"
-        local file="$2"
+        local var_name="$2"
         local proto="${3:-tcp/udp}" 
         
-        if [ -f "$HOME/agsbx/$file" ]; then
-            local p=$(cat "$HOME/agsbx/$file")
-            
+        local p="${!var_name}"
+        
+        if [ -n "$p" ]; then
             # Display
             echo " - $name: $p ($proto)"
             
@@ -541,42 +549,40 @@ generate_all_links() {
     
     rm -rf "$HOME/agsbx/jh.txt"
     
-    # Load necessary variables from files to ensure persistence
-    uuid=$(cat "$HOME/agsbx/uuid" 2>/dev/null)
+    # Reload config to ensure we have latest vars
+    [ -f "$HOME/agsbx/config.env" ] && source "$HOME/agsbx/config.env"
+    
     server_ip=$(cat "$HOME/agsbx/server_ip.log" 2>/dev/null)
     [ -z "$server_ip" ] && server_ip="127.0.0.1"
     
-    sxname=$(cat "$HOME/agsbx/name" 2>/dev/null)
+    # Use variable directly
+    sxname="${name}"
     hostname=$(uname -n)
     
-    xvvmcdnym=$(cat "$HOME/agsbx/cdnym" 2>/dev/null)
-    ym_vl_re=$(cat "$HOME/agsbx/ym_vl_re" 2>/dev/null)
+    xvvmcdnym="${cdnym}"
+    ym_vl_re="${ym_vl_re}"
     
-    # Keys
-    if [ -e "$HOME/agsbx/xray" ]; then
-        private_key_x=$(cat "$HOME/agsbx/xrk/private_key" 2>/dev/null)
-        public_key_x=$(cat "$HOME/agsbx/xrk/public_key" 2>/dev/null)
-        short_id_x=$(cat "$HOME/agsbx/xrk/short_id" 2>/dev/null)
-        enkey=$(cat "$HOME/agsbx/xrk/enkey" 2>/dev/null)
-    fi
-    if [ -e "$HOME/agsbx/sing-box" ]; then
-        private_key_s=$(cat "$HOME/agsbx/sbk/private_key" 2>/dev/null)
-        public_key_s=$(cat "$HOME/agsbx/sbk/public_key" 2>/dev/null)
-        short_id_s=$(cat "$HOME/agsbx/sbk/short_id" 2>/dev/null)
-        sskey=$(cat "$HOME/agsbx/sskey" 2>/dev/null)
-    fi
+    # Map keys from config names to local names
+    private_key_x="${xray_key_private}"
+    public_key_x="${xray_key_public}"
+    short_id_x="${xray_key_shortid}"
+    enkey="${xray_key_en}"
+    
+    private_key_s="${singbox_key_private}"
+    public_key_s="${singbox_key_public}"
+    short_id_s="${singbox_key_shortid}"
+    sskey="${sskey}"
+    cert_sha256="${cert_sha256}"
 
     # Check Xray Config
     if [ -f "$HOME/agsbx/xr.json" ]; then
         local xr_content=$(cat "$HOME/agsbx/xr.json")
         
         if echo "$xr_content" | grep -q 'xhttp-reality'; then
-            port_xh=$(cat "$HOME/agsbx/port_xh")
             echo "vless://$uuid@$server_ip:$port_xh?encryption=none&security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_x&sid=$short_id_x&type=xhttp&path=$uuid-xh&mode=auto#${sxname}vl-xhttp-reality-enc-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
         
         if echo "$xr_content" | grep -q 'vless-xhttp"'; then
-             port_vx=$(cat "$HOME/agsbx/port_vx")
              echo "vless://$uuid@$server_ip:$port_vx?encryption=$enkey&type=xhttp&path=$uuid-vx&mode=auto#${sxname}vl-xhttp-enc-$hostname" >> "$HOME/agsbx/jh.txt"
              if [ -n "$xvvmcdnym" ]; then
                  echo "vless://$uuid@yg$(cfip).ygkkk.dpdns.org:$port_vx?encryption=$enkey&type=xhttp&host=$xvvmcdnym&path=$uuid-vx&mode=auto#${sxname}vl-xhttp-enc-cdn-$hostname" >> "$HOME/agsbx/jh.txt"
@@ -584,7 +590,6 @@ generate_all_links() {
         fi
         
         if echo "$xr_content" | grep -q 'vless-xhttp-cdn'; then
-             port_vw=$(cat "$HOME/agsbx/port_vw")
              echo "vless://$uuid@$server_ip:$port_vw?encryption=$enkey&type=xhttp&path=$uuid-vw&mode=packet-up#${sxname}vl-xhttp-enc-$hostname" >> "$HOME/agsbx/jh.txt"
              if [ -n "$xvvmcdnym" ]; then
                  echo "vless://$uuid@yg$(cfip).ygkkk.dpdns.org:$port_vw?encryption=$enkey&type=xhttp&host=$xvvmcdnym&path=$uuid-vw&mode=packet-up#${sxname}vl-xhttp-enc-cdn-$hostname" >> "$HOME/agsbx/jh.txt"
@@ -592,7 +597,6 @@ generate_all_links() {
         fi
         
         if echo "$xr_content" | grep -q 'reality-vision'; then
-            port_vl_re=$(cat "$HOME/agsbx/port_vl_re")
             echo "vless://$uuid@$server_ip:$port_vl_re?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_x&sid=$short_id_x&type=tcp&headerType=none#${sxname}vl-reality-vision-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
     fi
@@ -602,24 +606,23 @@ generate_all_links() {
         local sb_content=$(cat "$HOME/agsbx/sb.json")
         
         if echo "$sb_content" | grep -q 'ss-2022'; then
-            port_ss=$(cat "$HOME/agsbx/port_ss")
             echo "ss://$(echo -n "2022-blake3-aes-256-gcm:$sskey@$server_ip:$port_ss" | base64 -w0)#${sxname}Shadowsocks-2022-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
         
+        if echo "$sb_content" | grep -q 'socks5-sb'; then
+             echo "socks5://$uuid:$uuid@$server_ip:$port_so#${sxname}socks5-$hostname" >> "$HOME/agsbx/jh.txt"
+        fi
+        
         if echo "$sb_content" | grep -q 'anytls-sb'; then
-            port_an=$(cat "$HOME/agsbx/port_an")
             echo "anytls://$uuid@$server_ip:$port_an?insecure=1&allowInsecure=1#${sxname}anytls-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
         
         if echo "$sb_content" | grep -q 'vless-reality-sb'; then
-             port_ar=$(cat "$HOME/agsbx/port_ar")
              echo "anytls://$uuid@$server_ip:$port_ar?security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_s&sid=$short_id_s&type=tcp&headerType=none#${sxname}any-reality-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
         
         if echo "$sb_content" | grep -q 'hy2-sb'; then
-             port_hy2=$(cat "$HOME/agsbx/port_hy2")
              random_cn=$(cat "$HOME/agsbx/cert_cn" 2>/dev/null || echo "www.bing.com")
-             cert_sha256=$(cat "$HOME/agsbx/cert_sha256" 2>/dev/null)
              
              if [ -n "$cert_sha256" ]; then
                  # Use Pinning (Recommended)
@@ -631,9 +634,7 @@ generate_all_links() {
         fi
         
         if echo "$sb_content" | grep -q 'tuic5-sb'; then
-             port_tu=$(cat "$HOME/agsbx/port_tu")
              random_cn=$(cat "$HOME/agsbx/cert_cn" 2>/dev/null || echo "www.bing.com")
-             cert_sha256=$(cat "$HOME/agsbx/cert_sha256" 2>/dev/null)
              
              if [ -n "$cert_sha256" ]; then
                 echo "tuic://$uuid:$uuid@$server_ip:$port_tu?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=$random_cn&pinSHA256=$cert_sha256#${sxname}tuic-$hostname" >> "$HOME/agsbx/jh.txt"
@@ -645,7 +646,6 @@ generate_all_links() {
     
     # Check VMess (Can be in either)
     if grep -q 'vmess-xhttp' "$HOME/agsbx/xr.json" 2>/dev/null || grep -q 'vmess-sb' "$HOME/agsbx/sb.json" 2>/dev/null; then
-        port_vm_ws=$(cat "$HOME/agsbx/port_vm_ws")
         echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-$hostname\", \"add\": \"$server_ip\", \"port\": \"$port_vm_ws\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"www.bing.com\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
         
         if [ -n "$xvvmcdnym" ]; then
@@ -654,11 +654,11 @@ generate_all_links() {
     fi
     
     # Argo Links
-    argodomain=$(cat "$HOME/agsbx/sbargoym.log" 2>/dev/null)
+    argodomain="${sbargoym}"
     [ -z "$argodomain" ] && argodomain=$(grep -a trycloudflare.com "$HOME/agsbx/argo.log" 2>/dev/null | awk 'NR==2{print}' | awk -F// '{print $2}' | awk '{print $1}')
     
     if [ -n "$argodomain" ]; then
-        vlvm=$(cat "$HOME/agsbx/vlvm" 2>/dev/null)
+        vlvm="${vlvm}"
         if [ "$vlvm" = "Vmess" ]; then
              echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-tls-argo-$hostname-443\", \"add\": \"yg1.ygkkk.dpdns.org\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
         elif [ "$vlvm" = "Vless" ]; then
