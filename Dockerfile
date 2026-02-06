@@ -4,10 +4,11 @@ FROM debian:stable-slim
 # procps is needed for 'nohup' and process management logic checks
 RUN apt-get update && apt-get install -y \
     curl \
-    wget \
     unzip \
     ca-certificates \
     procps \
+    psmisc \
+    iproute2 \
     tzdata \
     uuid-runtime \
     tar \

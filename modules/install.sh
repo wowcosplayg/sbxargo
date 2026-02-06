@@ -94,6 +94,70 @@ install_dependencies() {
     mkdir -p "$HOME/agsbx"
 }
 
+optimize_system() {
+    # Skip if in Docker (User usually cannot sysctl in docker unless privileged)
+    if [ -f /.dockerenv ]; then
+        log_warn "检测到 Docker 环境，跳过内核参数优化 (宿主机权限限制)。建议在宿主机开启 BBR。"
+        return 0
+    fi
+    
+    log_info "检查系统性能参数..."
+    local need_optimization=0
+    
+    # Check IP Forwarding
+    if [ "$(sysctl -n net.ipv4.ip_forward 2>/dev/null)" != "1" ]; then
+        need_optimization=1
+    fi
+    
+    # Check BBR
+    if ! sysctl net.ipv4.tcp_congestion_control 2>/dev/null | grep -q "bbr"; then
+        need_optimization=1
+    fi
+    
+    if [ "$need_optimization" -eq 0 ]; then
+        log_info "系统已开启 IP 转发及 BBR 加速，无需重复优化。"
+        return 0
+    fi
+
+    # Interactive Prompt
+    echo ""
+    echo "========================================================="
+    echo "   性能优化建议"
+    echo "========================================================="
+    echo "检测到系统未开启 BBR 加速或 IP 转发。"
+    echo "优化可显著提升网络吞吐量和并在高丢包环境下改善连接稳定性。"
+    echo ""
+    read -p "是否执行系统内核优化 (BBR + Sysctl)? (Y/n) [默认: Y]: " choice
+    choice=${choice:-Y}
+    
+    if [[ "$choice" =~ ^[Yy]$ ]]; then
+        log_info "正在应用内核优化..."
+        
+        cat > /etc/sysctl.d/99-argosbx.conf <<EOF
+# Argosbx Tuning
+net.core.default_qdisc=fq
+net.ipv4.tcp_congestion_control=bbr
+net.ipv4.ip_forward=1
+net.core.rmem_max=26214400
+net.core.wmem_max=26214400
+net.ipv4.tcp_rmem=4096 87380 26214400
+net.ipv4.tcp_wmem=4096 16384 26214400
+net.ipv4.tcp_mtu_probing=1
+EOF
+        sysctl -p /etc/sysctl.d/99-argosbx.conf >/dev/null 2>&1
+        
+        # Verify
+        local bbr_status=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)
+        if [ "$bbr_status" == "bbr" ]; then
+             log_info "优化成功! 当前算法: $bbr_status"
+        else
+             log_warn "优化完成但 BBR 看来未启用 (可能是内核版本过低 ?)。建议重启系统。"
+        fi
+    else
+        log_info "已跳过优化。"
+    fi
+}
+
 # ============================================================================
 # Generic Download Functions
 # ============================================================================
@@ -177,6 +241,9 @@ download_official_release() {
         *.tar.gz|*.tgz)
             tar -xzf "$archive_file" -C "$temp_dir" 2>&1 | tee -a "$HOME/agsbx/argosbx.log" > /dev/null
             ;;
+        *.tar.gz|*.tgz)
+            tar -xzf "$archive_file" -C "$temp_dir" 2>&1 | tee -a "$HOME/agsbx/argosbx.log" > /dev/null
+            ;;
         *)
             log_error "不支持的压缩格式: $archive_pattern"
             rm -rf "$temp_dir"
@@ -213,4 +280,3 @@ install_package() {
     elif command -v yum >/dev/null 2>&1; then yum install -y "$package";
     fi
 }
-

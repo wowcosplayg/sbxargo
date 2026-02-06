@@ -172,6 +172,8 @@ add_tuic_singbox() {
     if [ -z "$port_tu" ] && [ ! -e "$HOME/agsbx/port_tu" ]; then
         port_tu=$(shuf -i 10000-65535 -n 1)
         echo "$port_tu" > "$HOME/agsbx/port_tu"
+    elif [ -n "$port_tu" ]; then
+        echo "$port_tu" > "$HOME/agsbx/port_tu"
     fi
     port_tu=$(cat "$HOME/agsbx/port_tu")
     log_info "添加 Tuic: $port_tu"
@@ -206,6 +208,8 @@ add_anytls_singbox() {
     if [ -z "$port_an" ] && [ ! -e "$HOME/agsbx/port_an" ]; then
         port_an=$(shuf -i 10000-65535 -n 1)
         echo "$port_an" > "$HOME/agsbx/port_an"
+    elif [ -n "$port_an" ]; then
+        echo "$port_an" > "$HOME/agsbx/port_an"
     fi
     port_an=$(cat "$HOME/agsbx/port_an")
     log_info "添加 Anytls: $port_an"
@@ -236,6 +240,8 @@ add_anyreality_singbox() {
     
     if [ -z "$port_ar" ] && [ ! -e "$HOME/agsbx/port_ar" ]; then
         port_ar=$(shuf -i 10000-65535 -n 1)
+        echo "$port_ar" > "$HOME/agsbx/port_ar"
+    elif [ -n "$port_ar" ]; then
         echo "$port_ar" > "$HOME/agsbx/port_ar"
     fi
     port_ar=$(cat "$HOME/agsbx/port_ar")
@@ -275,6 +281,8 @@ add_shadowsocks_singbox() {
     if [ -z "$port_ss" ] && [ ! -e "$HOME/agsbx/port_ss" ]; then
         port_ss=$(shuf -i 10000-65535 -n 1)
         echo "$port_ss" > "$HOME/agsbx/port_ss"
+    elif [ -n "$port_ss" ]; then
+        echo "$port_ss" > "$HOME/agsbx/port_ss"
     fi
     port_ss=$(cat "$HOME/agsbx/port_ss")
     log_info "添加 Shadowsocks: $port_ss"
@@ -295,6 +303,8 @@ add_vmess_singbox() {
     [ -z "$vmp" ] && return
     if [ -z "$port_vm_ws" ] && [ ! -e "$HOME/agsbx/port_vm_ws" ]; then
         port_vm_ws=$(shuf -i 10000-65535 -n 1)
+        echo "$port_vm_ws" > "$HOME/agsbx/port_vm_ws"
+    elif [ -n "$port_vm_ws" ]; then
         echo "$port_vm_ws" > "$HOME/agsbx/port_vm_ws"
     fi
     port_vm_ws=$(cat "$HOME/agsbx/port_vm_ws")
@@ -324,6 +334,8 @@ add_socks_singbox() {
     [ -z "$sop" ] && return
     if [ -z "$port_so" ] && [ ! -e "$HOME/agsbx/port_so" ]; then
         port_so=$(shuf -i 10000-65535 -n 1)
+        echo "$port_so" > "$HOME/agsbx/port_so"
+    elif [ -n "$port_so" ]; then
         echo "$port_so" > "$HOME/agsbx/port_so"
     fi
     port_so=$(cat "$HOME/agsbx/port_so")
@@ -364,6 +376,7 @@ EOF
     ,{
       "type": "wireguard",
       "tag": "warp-out",
+      "mtu": 1280,
       "address": [
         "172.16.0.2/32",
         "${wpv6}/128"
@@ -422,6 +435,8 @@ After=network.target
 [Service]
 Type=simple
 NoNewPrivileges=yes
+LimitNPROC=512000
+LimitNOFILE=512000
 TimeoutStartSec=0
 ExecStart=/root/agsbx/sing-box run -c /root/agsbx/sb.json
 Restart=on-failure

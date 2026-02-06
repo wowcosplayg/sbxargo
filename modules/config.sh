@@ -93,34 +93,99 @@ interactive_config() {
     echo "   Argosbx 交互式配置向导"
     echo "========================================================="
     
+    # Helper to get current port
+    get_v() { cat "$HOME/agsbx/$1" 2>/dev/null; }
+
+    # VLESS-Reality
+    local curr=$(get_v port_vl_re)
+    local hint="默认随机"
+    [ -n "$curr" ] && hint="当前: $curr"
     read -p "是否启用 VLESS-Reality? (y/n): " choice
-    if [[ "$choice" == "y" ]]; then vlp=yes; read -p "请输入端口 (默认随机): " port_vl_re; fi
+    if [[ "$choice" == "y" ]]; then 
+        vlp=yes
+        read -p "请输入端口 ($hint): " input_port
+        port_vl_re="${input_port:-$curr}"
+    fi
 
+    # Hysteria2
+    curr=$(get_v port_hy2)
+    hint="默认随机"
+    [ -n "$curr" ] && hint="当前: $curr"
     read -p "是否启用 Hysteria2? (y/n): " choice
-    if [[ "$choice" == "y" ]]; then hyp=yes; read -p "请输入端口 (默认随机): " port_hy2; fi
+    if [[ "$choice" == "y" ]]; then 
+        hyp=yes
+        read -p "请输入端口 ($hint): " input_port
+        port_hy2="${input_port:-$curr}"
+    fi
 
+    # Tuic
+    curr=$(get_v port_tu)
+    hint="默认随机"
+    [ -n "$curr" ] && hint="当前: $curr"
     read -p "是否启用 Tuic V5? (y/n): " choice
-    if [[ "$choice" == "y" ]]; then tup=yes; read -p "请输入端口 (默认随机): " port_tu; fi
+    if [[ "$choice" == "y" ]]; then 
+        tup=yes
+        read -p "请输入端口 ($hint): " input_port
+        port_tu="${input_port:-$curr}"
+    fi
 
+    # XHTTP
+    curr=$(get_v port_xh)
+    hint="默认随机"
+    [ -n "$curr" ] && hint="当前: $curr"
     read -p "是否启用 Vless-XHTTP? (y/n): " choice
-    if [[ "$choice" == "y" ]]; then xhp=yes; read -p "请输入端口 (默认随机): " port_xh; fi
+    if [[ "$choice" == "y" ]]; then 
+        xhp=yes
+        read -p "请输入端口 ($hint): " input_port
+        port_xh="${input_port:-$curr}"
+    fi
 
+    # Shadowsocks
+    curr=$(get_v port_ss)
+    hint="默认随机"
+    [ -n "$curr" ] && hint="当前: $curr"
     read -p "是否启用 Shadowsocks-2022? (y/n): " choice
-    if [[ "$choice" == "y" ]]; then ssp=yes; read -p "请输入端口 (默认随机): " port_ss; fi
+    if [[ "$choice" == "y" ]]; then 
+        ssp=yes
+        read -p "请输入端口 ($hint): " input_port
+        port_ss="${input_port:-$curr}"
+    fi
 
+    # Socks5
+    curr=$(get_v port_so)
+    hint="默认随机"
+    [ -n "$curr" ] && hint="当前: $curr"
     read -p "是否启用 Socks5? (y/n): " choice
-    if [[ "$choice" == "y" ]]; then sop=yes; read -p "请输入端口 (默认随机): " port_so; fi
+    if [[ "$choice" == "y" ]]; then 
+        sop=yes
+        read -p "请输入端口 ($hint): " input_port
+        port_so="${input_port:-$curr}"
+    fi
     
     # UUID Config
     echo "---------------------------------------------------------"
-    read -p "是否自定义 UUID? (y/n, 默认随机): " uuid_choice
+    local curr_uuid=$(cat "$HOME/agsbx/uuid" 2>/dev/null)
+    local uuid_hint="默认随机"
+    [ -n "$curr_uuid" ] && uuid_hint="当前: $curr_uuid"
+    
+    read -p "是否自定义 UUID? (y/n, $uuid_hint): " uuid_choice
     if [[ "$uuid_choice" == "y" ]]; then
-        read -p "请输入您的 UUID: " custom_uuid
-        if [ -n "$custom_uuid" ]; then
-            uuid="$custom_uuid"
-        else
-            echo "未输入 UUID，将使用随机生成。"
+        read -p "请输入您的 UUID (回车保持当前/随机): " input_uuid
+        # Logic: If input empty -> keep current. If current empty -> random generated later.
+        if [ -n "$input_uuid" ]; then
+             uuid="$input_uuid"
+        elif [ -n "$curr_uuid" ]; then
+             uuid="$curr_uuid"
         fi
+    else
+        # If user says No custom, and current exists, usually we keep current?
+        # Standard logic in insuuid is: if uuid var empty, check file.
+        # So we just leave uuid empty here, insuuid will handle it (Keep existing).
+        # But if user WANTS to generate NEW random? 
+        # They should choose 'y' and type nothing? No.
+        # Let's say: No custom means "Let System Decide" (Keep Existing or Random).
+        # This matches `insuuid` logic.
+        :
     fi
     [ -n "$uuid" ] && export uuid
     

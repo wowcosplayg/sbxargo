@@ -156,6 +156,8 @@ add_xhttp_xray() {
         if [ -z "$port_xh" ] && [ ! -e "$HOME/agsbx/port_xh" ]; then
             port_xh=$(shuf -i 10000-65535 -n 1)
             echo "$port_xh" > "$HOME/agsbx/port_xh"
+        elif [ -n "$port_xh" ]; then
+            echo "$port_xh" > "$HOME/agsbx/port_xh"
         fi
         port_xh=$(cat "$HOME/agsbx/port_xh")
         log_info "添加 Vless-xhttp-reality: $port_xh"
@@ -206,6 +208,8 @@ EOF
         if [ -z "$port_vx" ] && [ ! -e "$HOME/agsbx/port_vx" ]; then
             port_vx=$(shuf -i 10000-65535 -n 1)
             echo "$port_vx" > "$HOME/agsbx/port_vx"
+        elif [ -n "$port_vx" ]; then
+            echo "$port_vx" > "$HOME/agsbx/port_vx"
         fi
         port_vx=$(cat "$HOME/agsbx/port_vx")
         log_info "添加 Vless-xhttp: $port_vx"
@@ -249,6 +253,8 @@ EOF
     if [ -n "$vwp" ]; then
         if [ -z "$port_vw" ] && [ ! -e "$HOME/agsbx/port_vw" ]; then
             port_vw=$(shuf -i 10000-65535 -n 1)
+            echo "$port_vw" > "$HOME/agsbx/port_vw"
+        elif [ -n "$port_vw" ]; then
             echo "$port_vw" > "$HOME/agsbx/port_vw"
         fi
         port_vw=$(cat "$HOME/agsbx/port_vw")
@@ -400,6 +406,7 @@ EOF
           "172.16.0.2/32",
           "${wpv6}/128"
         ],
+        "mtu": 1280,
         "peers": [
           {
             "publicKey": "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
@@ -407,7 +414,8 @@ EOF
               "0.0.0.0/0",
               "::/0"
             ],
-            "endpoint": "${xendip}:2408"
+            "endpoint": "${xendip}:2408",
+            "keepAlive": 15
           }
         ],
         "reserved": ${res}
@@ -458,6 +466,8 @@ After=network.target
 [Service]
 Type=simple
 NoNewPrivileges=yes
+LimitNPROC=512000
+LimitNOFILE=512000
 TimeoutStartSec=0
 ExecStart=/root/agsbx/xray run -c /root/agsbx/xr.json
 Restart=on-failure
