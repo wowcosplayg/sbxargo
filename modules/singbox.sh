@@ -99,7 +99,7 @@ generate_singbox_keys() {
     # Shadowsocks Key
     if [ -n "$ssp" ]; then
         if [ ! -e "$HOME/agsbx/sskey" ]; then
-            sskey=$("$HOME/agsbx/sing-box" generate rand 16 --base64)
+            sskey=$("$HOME/agsbx/sing-box" generate rand 32 --base64)
             echo "$sskey" > "$HOME/agsbx/sskey"
         fi
     fi
@@ -107,7 +107,15 @@ generate_singbox_keys() {
     export private_key_s=$(cat "$HOME/agsbx/sbk/private_key" 2>/dev/null)
     export public_key_s=$(cat "$HOME/agsbx/sbk/public_key" 2>/dev/null)
     export short_id_s=$(cat "$HOME/agsbx/sbk/short_id" 2>/dev/null)
+    export short_id_s=$(cat "$HOME/agsbx/sbk/short_id" 2>/dev/null)
     export sskey=$(cat "$HOME/agsbx/sskey" 2>/dev/null)
+    
+    # Calculate SHA256 Fingerprint for Pinning (Fixes allowInsecure warning)
+    if [ -f "$HOME/agsbx/cert.pem" ] && command -v openssl >/dev/null 2>&1; then
+        cert_sha256=$(openssl x509 -noout -fingerprint -sha256 -in "$HOME/agsbx/cert.pem" | awk -F= '{print $2}' | tr -d : | tr '[:upper:]' '[:lower:]')
+        echo "$cert_sha256" > "$HOME/agsbx/cert_sha256"
+        export cert_sha256
+    fi
 }
 
 init_singbox_config() {
@@ -277,7 +285,7 @@ add_shadowsocks_singbox() {
             "tag":"ss-2022",
             "listen": "::",
             "listen_port": $port_ss,
-            "method": "2022-blake3-aes-128-gcm",
+            "method": "2022-blake3-aes-256-gcm",
             "password": "$sskey"
     },  
 EOF

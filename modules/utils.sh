@@ -572,7 +572,7 @@ generate_all_links() {
         
         if echo "$xr_content" | grep -q 'xhttp-reality'; then
             port_xh=$(cat "$HOME/agsbx/port_xh")
-            echo "vless://$uuid@$server_ip:$port_xh?encryption=$enkey&security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_x&sid=$short_id_x&type=xhttp&path=$uuid-xh&mode=auto#${sxname}vl-xhttp-reality-enc-$hostname" >> "$HOME/agsbx/jh.txt"
+            echo "vless://$uuid@$server_ip:$port_xh?encryption=none&security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_x&sid=$short_id_x&type=xhttp&path=$uuid-xh&mode=auto#${sxname}vl-xhttp-reality-enc-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
         
         if echo "$xr_content" | grep -q 'vless-xhttp"'; then
@@ -603,7 +603,7 @@ generate_all_links() {
         
         if echo "$sb_content" | grep -q 'ss-2022'; then
             port_ss=$(cat "$HOME/agsbx/port_ss")
-            echo "ss://$(echo -n "2022-blake3-aes-128-gcm:$sskey@$server_ip:$port_ss" | base64 -w0)#${sxname}Shadowsocks-2022-$hostname" >> "$HOME/agsbx/jh.txt"
+            echo "ss://$(echo -n "2022-blake3-aes-256-gcm:$sskey@$server_ip:$port_ss" | base64 -w0)#${sxname}Shadowsocks-2022-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
         
         if echo "$sb_content" | grep -q 'anytls-sb'; then
@@ -619,13 +619,27 @@ generate_all_links() {
         if echo "$sb_content" | grep -q 'hy2-sb'; then
              port_hy2=$(cat "$HOME/agsbx/port_hy2")
              random_cn=$(cat "$HOME/agsbx/cert_cn" 2>/dev/null || echo "www.bing.com")
-             echo "hysteria2://$uuid@$server_ip:$port_hy2?security=tls&alpn=h3&insecure=1&sni=$random_cn#${sxname}hy2-$hostname" >> "$HOME/agsbx/jh.txt"
+             cert_sha256=$(cat "$HOME/agsbx/cert_sha256" 2>/dev/null)
+             
+             if [ -n "$cert_sha256" ]; then
+                 # Use Pinning (Recommended)
+                 echo "hysteria2://$uuid@$server_ip:$port_hy2?security=tls&alpn=h3&pinSHA256=$cert_sha256&sni=$random_cn#${sxname}hy2-$hostname" >> "$HOME/agsbx/jh.txt"
+             else
+                 # Fallback to insecure if no cert hash
+                 echo "hysteria2://$uuid@$server_ip:$port_hy2?security=tls&alpn=h3&insecure=1&sni=$random_cn#${sxname}hy2-$hostname" >> "$HOME/agsbx/jh.txt"
+             fi
         fi
         
         if echo "$sb_content" | grep -q 'tuic5-sb'; then
              port_tu=$(cat "$HOME/agsbx/port_tu")
              random_cn=$(cat "$HOME/agsbx/cert_cn" 2>/dev/null || echo "www.bing.com")
-             echo "tuic://$uuid:$uuid@$server_ip:$port_tu?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=$random_cn&allow_insecure=1&allowInsecure=1#${sxname}tuic-$hostname" >> "$HOME/agsbx/jh.txt"
+             cert_sha256=$(cat "$HOME/agsbx/cert_sha256" 2>/dev/null)
+             
+             if [ -n "$cert_sha256" ]; then
+                echo "tuic://$uuid:$uuid@$server_ip:$port_tu?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=$random_cn&pinSHA256=$cert_sha256#${sxname}tuic-$hostname" >> "$HOME/agsbx/jh.txt"
+             else
+                echo "tuic://$uuid:$uuid@$server_ip:$port_tu?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=$random_cn&allow_insecure=1&allowInsecure=1#${sxname}tuic-$hostname" >> "$HOME/agsbx/jh.txt"
+             fi
         fi
     fi
     

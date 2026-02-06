@@ -172,7 +172,7 @@ add_xhttp_xray() {
             "id": "${uuid}"
           }
         ],
-        "decryption": "${dekey}"
+        "decryption": "none"
       },
       "streamSettings": {
         "network": "xhttp",

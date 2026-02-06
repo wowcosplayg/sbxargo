@@ -111,6 +111,19 @@ interactive_config() {
     read -p "是否启用 Socks5? (y/n): " choice
     if [[ "$choice" == "y" ]]; then sop=yes; read -p "请输入端口 (默认随机): " port_so; fi
     
+    # UUID Config
+    echo "---------------------------------------------------------"
+    read -p "是否自定义 UUID? (y/n, 默认随机): " uuid_choice
+    if [[ "$uuid_choice" == "y" ]]; then
+        read -p "请输入您的 UUID: " custom_uuid
+        if [ -n "$custom_uuid" ]; then
+            uuid="$custom_uuid"
+        else
+            echo "未输入 UUID，将使用随机生成。"
+        fi
+    fi
+    [ -n "$uuid" ] && export uuid
+    
     # Export chosen vars
     export vlp hyp tup xhp ssp sop
     export port_vl_re port_hy2 port_tu port_xh port_ss port_so
