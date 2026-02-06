@@ -77,7 +77,7 @@ install_flow() {
     check_argo_status
     
     # 10. Show Info
-    generate_links
+    generate_all_links
     
     log_info "Argosbx 部署完成！"
 }
