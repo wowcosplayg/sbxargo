@@ -205,7 +205,7 @@ add_xhttp_xray() {
           "shortIds": ["$short_id_x"]
         },
         "xhttpSettings": {
-          "host": "",
+          "host": "${ym_vl_re}",
           "path": "${uuid}-xh",
           "mode": "auto"
         }

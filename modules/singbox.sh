@@ -33,10 +33,13 @@ install_singbox_core() {
         version=$(wget -qO- "$latest_url" | grep -o '"tag_name": *"[^"]*"' | sed 's/"tag_name": *"\(.*\)"/\1/' | sed 's/^v//')
     fi
     
+    # Fallback if API fails
     if [ -z "$version" ]; then
-        log_error "无法获取 Sing-box 版本信息"
-        return 1
+        log_warn "获取 Sing-box 版本失败，使用默认版本 1.10.1"
+        version="1.10.1"
     fi
+    
+
     
     local archive_name="sing-box-${version}-linux-${cpu}.tar.gz"
     local download_url="https://github.com/$repo/releases/download/v${version}/$archive_name"
@@ -346,6 +349,12 @@ add_socks_singbox() {
     elif [ -n "$port_so" ]; then
         update_config_var "port_so" "$port_so"
     fi
+    # Conflict Check: If Xray is installed/configured with Socks5, we skip Sing-box Socks5 on same port
+    if [ -f "$HOME/agsbx/xr.json" ] && grep -q "socks5-xr" "$HOME/agsbx/xr.json"; then
+        log_warn "检测到 Xray 已接管 Socks5 协议，Sing-box Socks5 将自动禁用以避免端口冲突。"
+        return
+    fi
+     
     log_info "添加 Socks5 (Sing-box): $port_so"
     
     cat >> "$HOME/agsbx/sb.json" <<EOF
