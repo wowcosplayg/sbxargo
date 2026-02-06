@@ -91,7 +91,13 @@ validate_env_vars() {
 update_config_var() {
     local key="$1"
     local value="$2"
-    local config_file="$HOME/agsbx/config.env"
+    local config_dir="$HOME/agsbx"
+    local config_file="$config_dir/config.env"
+    
+    # Ensure dir exists
+    if [ ! -d "$config_dir" ]; then
+        mkdir -p "$config_dir"
+    fi
     
     # 1. Update in-memory variable
     export "${key}=${value}"
@@ -99,13 +105,15 @@ update_config_var() {
     # 2. Update config file
     if [ -f "$config_file" ]; then
         if grep -q "^${key}=" "$config_file"; then
-            # Update existing line (using a temp file to avoid race conditions/issues)
-            # Use strict matching for key
+            # Update existing line
             sed -i "s|^${key}=.*|${key}=\"${value}\"|" "$config_file"
         else
             # Append new line
             echo "${key}=\"${value}\"" >> "$config_file"
         fi
+    else
+        # Create new file
+        echo "${key}=\"${value}\"" > "$config_file"
     fi
 }
 

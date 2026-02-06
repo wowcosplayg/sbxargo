@@ -622,7 +622,7 @@ generate_all_links() {
         fi
         
         if echo "$sb_content" | grep -q 'hy2-sb'; then
-             random_cn=$(cat "$HOME/agsbx/cert_cn" 2>/dev/null || echo "www.bing.com")
+             random_cn="${cert_cn:-www.bing.com}"
              
              if [ -n "$cert_sha256" ]; then
                  # Use Pinning (Recommended)
@@ -634,7 +634,7 @@ generate_all_links() {
         fi
         
         if echo "$sb_content" | grep -q 'tuic5-sb'; then
-             random_cn=$(cat "$HOME/agsbx/cert_cn" 2>/dev/null || echo "www.bing.com")
+             random_cn="${cert_cn:-www.bing.com}"
              
              if [ -n "$cert_sha256" ]; then
                 echo "tuic://$uuid:$uuid@$server_ip:$port_tu?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=$random_cn&pinSHA256=$cert_sha256#${sxname}tuic-$hostname" >> "$HOME/agsbx/jh.txt"

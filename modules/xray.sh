@@ -117,7 +117,7 @@ EOF
 }
 
 add_reality_xray() {
-    [ -z "$vlp" ] && return
+    [ "$vlp" != "yes" ] && return
     
     if [ -z "$port_vl_re" ] && [ ! -e "$HOME/agsbx/port_vl_re" ]; then
         port_vl_re=$(shuf -i 10000-65535 -n 1)
@@ -312,7 +312,7 @@ EOF
 }
 
 add_vmess_xray() {
-    [ -z "$vmp" ] && return
+    [ "$vmp" != "yes" ] && return
     
     if [ -z "$port_vm_ws" ] && [ ! -e "$HOME/agsbx/port_vm_ws" ]; then
         port_vm_ws=$(shuf -i 10000-65535 -n 1)
@@ -357,7 +357,7 @@ EOF
 }
 
 add_socks_xray() {
-    [ -z "$sop" ] && return
+    [ "$sop" != "yes" ] && return
     
     if [ -z "$port_so" ] && [ ! -e "$HOME/agsbx/port_so" ]; then
         port_so=$(shuf -i 10000-65535 -n 1)

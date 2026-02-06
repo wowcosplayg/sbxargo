@@ -137,7 +137,7 @@ EOF
 }
 
 add_hysteria2_singbox() {
-    [ -z "$hyp" ] && return
+    [ "$hyp" != "yes" ] && return
     
     if [ -z "$port_hy2" ] && [ ! -e "$HOME/agsbx/port_hy2" ]; then
         port_hy2=$(shuf -i 10000-65535 -n 1)
@@ -172,7 +172,7 @@ EOF
 }
 
 add_tuic_singbox() {
-    [ -z "$tup" ] && return
+    [ "$tup" != "yes" ] && return
     
     if [ -z "$port_tu" ] && [ ! -e "$HOME/agsbx/port_tu" ]; then
         port_tu=$(shuf -i 10000-65535 -n 1)
@@ -208,7 +208,7 @@ EOF
 }
 
 add_anytls_singbox() {
-    [ -z "$anp" ] && return
+    [ "$anp" != "yes" ] && return
     if [ -z "$port_an" ] && [ ! -e "$HOME/agsbx/port_an" ]; then
         port_an=$(shuf -i 10000-65535 -n 1)
         update_config_var "port_an" "$port_an"
@@ -240,7 +240,7 @@ EOF
 }
 
 add_anyreality_singbox() {
-    [ -z "$arp" ] && return
+    [ "$arp" != "yes" ] && return
     
     if [ -z "$port_ar" ] && [ ! -e "$HOME/agsbx/port_ar" ]; then
         port_ar=$(shuf -i 10000-65535 -n 1)
@@ -280,7 +280,7 @@ EOF
 }
 
 add_shadowsocks_singbox() {
-    [ -z "$ssp" ] && return
+    [ "$ssp" != "yes" ] && return
     if [ -z "$port_ss" ] && [ ! -e "$HOME/agsbx/port_ss" ]; then
         port_ss=$(shuf -i 10000-65535 -n 1)
         update_config_var "port_ss" "$port_ss"
@@ -302,7 +302,7 @@ EOF
 }
 
 add_vmess_singbox() {
-    [ -z "$vmp" ] && return
+    [ "$vmp" != "yes" ] && return
     
     # Conflict Check: If Xray is installed/configured with VMess, we skip Sing-box VMess on same port
     if [ -f "$HOME/agsbx/xr.json" ] && grep -q "vmess-xhttp-argo" "$HOME/agsbx/xr.json"; then
@@ -339,7 +339,7 @@ EOF
 }
 
 add_socks_singbox() {
-    [ -z "$sop" ] && return
+    [ "$sop" != "yes" ] && return
     if [ -z "$port_so" ] && [ ! -e "$HOME/agsbx/port_so" ]; then
         port_so=$(shuf -i 10000-65535 -n 1)
         update_config_var "port_so" "$port_so"
