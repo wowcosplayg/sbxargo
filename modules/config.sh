@@ -89,6 +89,21 @@ validate_env_vars() {
 }
 
 interactive_config() {
+    # Check if autoset (Docker or Env Vars)
+    if [ "$vlp" = "yes" ] || [ "$hyp" = "yes" ] || [ "$tup" = "yes" ] || \
+       [ "$xhp" = "yes" ] || [ "$vxp" = "yes" ] || [ "$anp" = "yes" ] || \
+       [ "$ssp" = "yes" ] || [ "$arp" = "yes" ] || [ "$sop" = "yes" ] || \
+       [ "$vwp" = "yes" ] || [ "$vmp" = "yes" ]; then
+        log_info "检测到预设配置变量 (或 Docker 环境)，跳过交互式向导..."
+        return 0
+    fi
+
+    # Also check if we are in a non-interactive shell just in case
+    if [ ! -t 0 ]; then
+        log_info "非交互式 Shell，跳过向导..."
+        return 0
+    fi
+
     echo "========================================================="
     echo "   Argosbx 交互式配置向导"
     echo "========================================================="
