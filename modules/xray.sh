@@ -325,11 +325,10 @@ add_vmess_xray() {
                 ]
             },
             "streamSettings": {
-                "network": "xhttp",
+                "network": "ws",
                 "security": "none",
-                "xhttpSettings": {
-                  "path": "${uuid}-vm",
-                  "mode": "packet-up"
+                "wsSettings": {
+                  "path": "/${uuid}-vm"
             }
         },
             "sniffing": {

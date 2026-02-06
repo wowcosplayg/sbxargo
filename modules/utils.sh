@@ -646,10 +646,10 @@ generate_all_links() {
     # Check VMess (Can be in either)
     if grep -q 'vmess-xhttp' "$HOME/agsbx/xr.json" 2>/dev/null || grep -q 'vmess-sb' "$HOME/agsbx/sb.json" 2>/dev/null; then
         port_vm_ws=$(cat "$HOME/agsbx/port_vm_ws")
-        echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-xhttp-$hostname\", \"add\": \"$server_ip\", \"port\": \"$port_vm_ws\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"xhttp\", \"type\": \"http\", \"host\": \"www.bing.com\", \"path\": \"/$uuid-vm\", \"tls\": \"\", \"mode\": \"packet-up\"}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
+        echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-$hostname\", \"add\": \"$server_ip\", \"port\": \"$port_vm_ws\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"www.bing.com\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
         
         if [ -n "$xvvmcdnym" ]; then
-             echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-xhttp-cdn-$hostname\", \"add\": \"yg$(cfip).ygkkk.dpdns.org\", \"port\": \"$port_vm_ws\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"xhttp\", \"type\": \"http\", \"host\": \"$xvvmcdnym\", \"path\": \"/$uuid-vm\", \"tls\": \"\", \"mode\": \"packet-up\"}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
+             echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-cdn-$hostname\", \"add\": \"yg$(cfip).ygkkk.dpdns.org\", \"port\": \"$port_vm_ws\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
         fi
     fi
     
@@ -660,7 +660,7 @@ generate_all_links() {
     if [ -n "$argodomain" ]; then
         vlvm=$(cat "$HOME/agsbx/vlvm" 2>/dev/null)
         if [ "$vlvm" = "Vmess" ]; then
-             echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-xhttp-tls-argo-$hostname-443\", \"add\": \"yg1.ygkkk.dpdns.org\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"xhttp\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\", \"mode\": \"packet-up\"}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
+             echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-tls-argo-$hostname-443\", \"add\": \"yg1.ygkkk.dpdns.org\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
         elif [ "$vlvm" = "Vless" ]; then
              echo "vless://$uuid@yg$(cfip).ygkkk.dpdns.org:443?encryption=$enkey&type=xhttp&host=$argodomain&path=$uuid-vw&mode=packet-up&security=tls&sni=$argodomain&fp=chrome&insecure=0&allowInsecure=0#${sxname}vless-xhttp-tls-argo-enc-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
