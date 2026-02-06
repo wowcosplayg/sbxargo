@@ -17,6 +17,71 @@ source "$BASE_DIR/modules/singbox.sh"
 # Global Config
 init_config
 
+# Main Installation Flow
+install_flow() {
+    local type="$1"
+    
+    # 1. System Check
+    check_system_compatibility
+    
+    # 2. Install Dependencies
+    install_dependencies
+    
+    # 3. System Optimization
+    optimize_system
+    
+    # 4. Interactive Configuration
+    # (If type is update, we migth skip prompting if config exists? 
+    # But for now, interactive_config allows keeping existing values easily)
+    interactive_config
+    
+    # 5. Core Installation
+    # Check if we need to install/update cores
+    install_xray_core
+    install_singbox_core
+    configure_argo_tunnel # Installs argo core if needed
+    
+    # 6. Generate Keys & Configs
+    generate_xray_keys
+    generate_singbox_keys
+    
+    init_xray_config
+    init_singbox_config
+    
+    # 7. Add Protocols
+    # Xray
+    add_reality_xray
+    add_xhttp_xray
+    add_vmess_xray
+    add_socks_xray
+    
+    # Sing-box
+    add_hysteria2_singbox
+    add_tuic_singbox
+    add_anytls_singbox
+    add_anyreality_singbox
+    add_shadowsocks_singbox
+    add_vmess_singbox
+    add_socks_singbox
+    
+    # 8. Add WARP & Routing
+    check_warp_availability
+    configure_warp_routing
+    
+    configure_xray_outbound
+    configure_singbox_outbound
+    
+    # 9. Start Services
+    start_xray_service
+    start_singbox_service
+    check_argo_status
+    
+    # 10. Show Info
+    generate_links
+    
+    log_info "Argosbx 部署完成！"
+}
+
 # Command Line Args Handling
 # Handle Actions
 handle_action() {
