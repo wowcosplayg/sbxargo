@@ -35,6 +35,9 @@ install_flow() {
     # But for now, interactive_config allows keeping existing values easily)
     interactive_config
     
+    # Ensure UUID is set (in case interactive/env didn't set it)
+    insuuid
+    
     # 5. Core Installation
     # Check if we need to install/update cores
     install_xray_core

@@ -301,6 +301,13 @@ EOF
 
 add_vmess_singbox() {
     [ -z "$vmp" ] && return
+    
+    # Conflict Check: If Xray is installed/configured with VMess, we skip Sing-box VMess on same port
+    if [ -f "$HOME/agsbx/xr.json" ] && grep -q "vmess-xhttp-argo" "$HOME/agsbx/xr.json"; then
+        log_warn "检测到 Xray 已接管 VMess 协议，Sing-box VMess 将自动禁用以避免端口冲突。"
+        return
+    fi
+    
     if [ -z "$port_vm_ws" ] && [ ! -e "$HOME/agsbx/port_vm_ws" ]; then
         port_vm_ws=$(shuf -i 10000-65535 -n 1)
         echo "$port_vm_ws" > "$HOME/agsbx/port_vm_ws"

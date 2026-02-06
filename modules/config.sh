@@ -122,6 +122,17 @@ interactive_config() {
         port_vl_re="${input_port:-$curr}"
     fi
 
+    # VMess-xhttp
+    curr=$(get_v port_vm_ws)
+    hint="默认随机"
+    [ -n "$curr" ] && hint="当前: $curr"
+    read -p "是否启用 VMess-xhttp? (y/n): " choice
+    if [[ "$choice" == "y" ]]; then 
+        vmp=yes
+        read -p "请输入端口 ($hint): " input_port
+        port_vm_ws="${input_port:-$curr}"
+    fi
+
     # Hysteria2
     curr=$(get_v port_hy2)
     hint="默认随机"
