@@ -250,11 +250,7 @@ add_anytls_singbox() {
                   "password":"${uuid}"
                 }
             ],
-            "padding_scheme": [
-                "0-100:100-500",
-                "100-500:500-1000",
-                "500-1000:1000-1500"
-            ],
+
             "tls":{
                 "enabled": true,
                 "certificate_path": "$HOME/agsbx/cert.pem",
