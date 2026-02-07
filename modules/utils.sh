@@ -631,7 +631,7 @@ generate_all_links() {
         fi
         
         if echo "$sb_content" | grep -q 'vless-reality-sb'; then
-             echo "vless://$uuid@$server_ip:$port_ar?security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_s&sid=$short_id_s&type=tcp&headerType=none#${sxname}vless-reality-$hostname" >> "$HOME/agsbx/jh.txt"
+             echo "vless://$uuid@$server_ip:$port_ar?security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_s&sid=$short_id_s&type=tcp&flow=xtls-rprx-vision&headerType=none#${sxname}vless-reality-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
         
         if echo "$sb_content" | grep -q 'hy2-sb'; then

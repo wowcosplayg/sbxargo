@@ -158,9 +158,10 @@ init_singbox_config() {
       },
       dns: {
         servers: [
-            { "tag": "google", "address": "tls://8.8.8.8", "detour": "direct" }
+            { "tag": "google", "address": "tls://8.8.8.8", "detour": "direct", "strategy": "prefer_ipv4" }
         ],
-        final: "google"
+        final: "google",
+        strategy: "prefer_ipv4"
       },
       inbounds: [],
       outbounds: [],
