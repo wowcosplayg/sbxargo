@@ -99,10 +99,20 @@ generate_singbox_keys() {
             update_config_var "singbox_key_private" "$private_key"
             update_config_var "singbox_key_public" "$public_key"
             update_config_var "singbox_key_shortid" "$short_id"
+            
+            # Persist keys
+            echo "$private_key" > "$HOME/agsbx/sbk/private_key"
+            echo "$public_key" > "$HOME/agsbx/sbk/public_key"
+            echo "$short_id" > "$HOME/agsbx/sbk/short_id"
         else
-            private_key="${singbox_key_private}"
-            public_key="${singbox_key_public}"
-            short_id="${singbox_key_shortid}"
+            private_key=$(cat "$HOME/agsbx/sbk/private_key")
+            public_key=$(cat "$HOME/agsbx/sbk/public_key")
+            short_id=$(cat "$HOME/agsbx/sbk/short_id")
+            
+            # Ensure env vars are synced
+            update_config_var "singbox_key_private" "$private_key"
+            update_config_var "singbox_key_public" "$public_key"
+            update_config_var "singbox_key_shortid" "$short_id"
         fi
     fi
      
@@ -111,6 +121,15 @@ generate_singbox_keys() {
         if [ ! -e "$HOME/agsbx/sskey" ]; then
             sskey=$("$HOME/agsbx/sing-box" generate rand 32 --base64)
             update_config_var "sskey" "$sskey"
+            
+            # Persist key
+            echo "$sskey" > "$HOME/agsbx/sskey"
+            chmod 600 "$HOME/agsbx/sskey"
+            
+        elif [ -s "$HOME/agsbx/sskey" ]; then
+             # Read existing key
+             sskey=$(cat "$HOME/agsbx/sskey")
+             update_config_var "sskey" "$sskey"
         fi
     fi
     
