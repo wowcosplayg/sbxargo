@@ -17,18 +17,79 @@ v4v6(){
     export v4 v6 v4dq v6dq
 }
 
-check_warp_availability(){
-    log_info "检查 WARP 可用性..."
-    warpurl=$( (command -v curl > /dev/null 2>&1 && curl -sm5 -k https://warp.xijp.eu.org 2>/dev/null) || (command -v wget > /dev/null 2>&1 && timeout 3 wget --tries=2 -qO- https://warp.xijp.eu.org 2>/dev/null) )
-    if echo "$warpurl" | grep -q html; then
-        wpv6='2606:4700:110:8d8d:1845:c39f:2dd5:a03a'
-        pvk='52cuYFgCJXp0LAq7+nWJIbCXXgU9eGggOc+Hlfz5u6A='
-        res='[215, 69, 233]'
-    else
-        pvk=$(echo "$warpurl" | awk -F'：' '/Private_key/{print $2}' | xargs)
-        wpv6=$(echo "$warpurl" | awk -F'：' '/IPV6/{print $2}' | xargs)
-        res=$(echo "$warpurl" | awk -F'：' '/reserved/{print $2}' | xargs)
+register_warp_local() {
+    if ! command -v warp-cli >/dev/null 2>&1; then
+        return 1
     fi
+    
+    log_info "检测到 warp-cli，尝试本地注册..."
+    
+    # Check if already registered
+    if warp-cli --accept-tos status | grep -q "Registration missing"; then
+         log_info "注册新 WARP 账户..."
+         warp-cli --accept-tos register >/dev/null 2>&1
+    fi
+    
+    # Get Keys
+    # Output format varies by version, trying generic parse
+    local account_out
+    account_out=$(warp-cli --accept-tos account)
+    
+    # Try to extract keys? warp-cli account usually doesn't show private key easily in newer versions without specific commands or config file reading.
+    # Actually, getting private key from warp-cli is hard in recent versions (it's hidden).
+    # But for Xray/Singbox wireguard usage, we NEED the private key.
+    # If standard warp-cli doesn't output it, we might need to look at /var/lib/cloudflare-warp/reg.json or similar (requires root).
+    
+    if [ -f "/var/lib/cloudflare-warp/reg.json" ]; then
+        if command -v jq >/dev/null 2>&1; then
+            pvk=$(jq -r .private_key "/var/lib/cloudflare-warp/reg.json")
+            wpv6=$(jq -r .config.interface.v6.ip "/var/lib/cloudflare-warp/reg.json")
+            # reserved might need decoding from distinct field or it's part of client id?
+            # Simplified: just try to get pvk and ipv6
+        fi
+    fi
+    
+    # If we can't get pvk, we can't use this method for Wireguard config.
+    if [ -z "$pvk" ]; then
+        log_warn "无法从本地 warp-cli 获取私钥 (可能需要 root 或版本不支持)。"
+        return 1
+    fi
+    
+    log_info "成功获取本地 WARP 密钥。"
+    return 0
+}
+
+check_warp_availability(){
+    log_info "检查 WARP 配置..."
+    
+    # Use user provided variables or defaults
+    # vars: wpv6 (IPv6), pvk (PrivateKey), res (Reserved)
+    
+    wpv6="${WARP_IPV6:-$wpv6}"
+    pvk="${WARP_PRIVATE_KEY:-$pvk}"
+    res="${WARP_RESERVED:-$res}"
+    
+    # Try local registration if missing
+    if [ -z "$pvk" ]; then
+        register_warp_local
+    fi
+    
+    if [ -n "$pvk" ]; then
+         log_info "WARP 配置有效"
+         # Ensure IPv6 is set (if local fetch failed to get it but got pvk?)
+         if [ -z "$wpv6" ]; then
+             # fallback or warning?
+             log_warn "WARP Private Key 存在但 IPv6 缺失，可能导致连接失败。"
+         fi
+         [ -z "$res" ] && res='[215, 69, 233]' 
+    else
+        log_warn "未检测到 WARP 密钥配置 (WARP_IPV6, WARP_PRIVATE_KEY)。WARP 功能可能无法使用。"
+        log_warn "请在 config.env 中配置或通过脚本输入。"
+        if [ "$warp" != "no" ] && [ -z "$warp" ]; then
+             warp="no"
+        fi
+    fi
+    
     export wpv6 pvk res
 }
 

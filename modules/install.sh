@@ -43,7 +43,7 @@ check_system_compatibility() {
 
 install_dependencies() {
     log_info "检查并安装依赖..."
-    local deps="curl unzip"
+    local deps="curl unzip jq"
     
     # Simple check function
     check_cmd() { command -v "$1" >/dev/null 2>&1; }
@@ -92,6 +92,7 @@ install_dependencies() {
     
     # Create workspace
     mkdir -p "$HOME/agsbx"
+    chmod 700 "$HOME/agsbx"
 }
 
 optimize_system() {

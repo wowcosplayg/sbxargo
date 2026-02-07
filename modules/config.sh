@@ -62,6 +62,7 @@ init_config() {
 insuuid(){
     if [ -n "$uuid" ]; then
         echo "$uuid" > "$HOME/agsbx/uuid"
+        chmod 600 "$HOME/agsbx/uuid"
     else
         # Allow checking existing uuid
          if [ -s "$HOME/agsbx/uuid" ]; then
@@ -69,6 +70,7 @@ insuuid(){
         else
             uuid=$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid)
             echo "$uuid" > "$HOME/agsbx/uuid"
+            chmod 600 "$HOME/agsbx/uuid"
         fi
     fi
     log_info "UUID: $uuid"
@@ -114,6 +116,7 @@ update_config_var() {
     else
         # Create new file
         echo "${key}=\"${value}\"" > "$config_file"
+        chmod 600 "$config_file"
     fi
 }
 
@@ -397,6 +400,16 @@ interactive_config() {
         if [[ "$warp_sel" == "1" ]]; then
              warp="x6" 
         fi
+        
+        # Ask for keys
+        read -p "  请输入 WARP IPv6 (留空则使用默认/环境变量): " input_wipv6
+        read -p "  请输入 WARP Private Key (留空则使用默认/环境变量): " input_wpvk
+        read -p "  请输入 WARP Reserved (格式 [a,b,c], 留空默认): " input_wres
+        
+        [ -n "$input_wipv6" ] && update_config_var "WARP_IPV6" "$input_wipv6"
+        [ -n "$input_wpvk" ] && update_config_var "WARP_PRIVATE_KEY" "$input_wpvk" 
+        [ -n "$input_wres" ] && update_config_var "WARP_RESERVED" "$input_wres"
+        
         update_config_var "warp" "$warp"
     else
         warp=no

@@ -17,32 +17,16 @@ source "$BASE_DIR/modules/singbox.sh"
 # Global Config
 init_config
 
-# Main Installation Flow
-install_flow() {
-    local type="$1"
     
-    # 1. System Check
-    check_system_compatibility
-    get_server_ip
-    
-    
-    # 2. Install Dependencies
-    install_dependencies
-    
-    # 3. System Optimization
-    optimize_system
+# Configuration Generation Logic (Extracted for Auto-Update)
+regenerate_config() {
+    log_info "正在重新生成配置文件..."
     
     # 4. Load Configuration (Non-Interactive)
     load_config
     
     # Ensure UUID is set
     insuuid
-    
-    # 5. Core Installation
-    # Check if we need to install/update cores
-    install_xray_core
-    install_singbox_core
-    configure_argo_tunnel # Installs argo core if needed
     
     # 6. Generate Keys & Configs
     generate_xray_keys
@@ -74,13 +58,40 @@ install_flow() {
     configure_xray_outbound
     configure_singbox_outbound
     
+    # 10. Show Info
+    generate_all_links
+    
+    log_info "配置重新生成完成！"
+}
+
+# Main Installation Flow
+install_flow() {
+    local type="$1"
+    
+    # 1. System Check
+    check_system_compatibility
+    get_server_ip
+    
+    
+    # 2. Install Dependencies
+    install_dependencies
+    
+    # 3. System Optimization
+    optimize_system
+    
+    # 5. Core Installation
+    # Check if we need to install/update cores
+    install_xray_core || { log_error "Xray 安装失败"; exit 1; }
+    install_singbox_core || { log_error "Sing-box 安装失败"; exit 1; }
+    configure_argo_tunnel || { log_error "Argo 配置失败"; exit 1; }
+    
+    # Run Generation Logic
+    regenerate_config || { log_error "配置生成失败"; exit 1; }
+    
     # 9. Start Services
     start_xray_service
     start_singbox_service
     check_argo_status
-    
-    # 10. Show Info
-    generate_all_links
     
     log_info "Argosbx 部署完成！"
 }
@@ -158,6 +169,22 @@ handle_action() {
             ;;
         install|update)
             install_flow "install"
+            ;;
+        regen)
+            check_system_compatibility
+            regenerate_config
+            # Restart services to apply changes
+            if command -v systemctl >/dev/null 2>&1; then
+                systemctl restart xr sb
+                log_info "Configuration regenerated and services restarted."
+            else
+                log_info "Configuration regenerated. Please restart services manually or via Docker restart."
+            fi
+            ;;
+        regen_no_restart)
+            check_system_compatibility
+            regenerate_config
+            log_info "Configuration regenerated (No Restart)."
             ;;
         *)
             log_error "未知参数: $action"

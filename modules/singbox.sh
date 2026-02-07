@@ -75,6 +75,7 @@ generate_singbox_keys() {
             local random_cn=$(openssl rand -hex 8).com
             update_config_var "cert_cn" "$random_cn"
             openssl ecparam -genkey -name prime256v1 -out "$HOME/agsbx/private.key" >/dev/null 2>&1
+            chmod 600 "$HOME/agsbx/private.key"
             openssl req -new -x509 -days 36500 -key "$HOME/agsbx/private.key" -out "$HOME/agsbx/cert.pem" -subj "/CN=$random_cn" >/dev/null 2>&1
         else
              log_error "openssl 未安装，无法生成证书"
@@ -88,6 +89,7 @@ generate_singbox_keys() {
         update_config_var "ym_vl_re" "$ym_vl_re"
         
         mkdir -p "$HOME/agsbx/sbk"
+        chmod 700 "$HOME/agsbx/sbk"
         if [ ! -e "$HOME/agsbx/sbk/private_key" ]; then
             key_pair=$("$HOME/agsbx/sing-box" generate reality-keypair)
             private_key=$(echo "$key_pair" | awk '/PrivateKey/ {print $2}' | tr -d '"')
@@ -128,15 +130,28 @@ generate_singbox_keys() {
 }
 
 init_singbox_config() {
-    cat > "$HOME/agsbx/sb.json" <<EOF
-{
-"log": {
-    "disabled": false,
-    "level": "info",
-    "timestamp": true
-  },
-  "inbounds": [
-EOF
+    require_jq
+    
+    jq -n '{
+      log: {
+        disabled: false,
+        level: "info",
+        timestamp: true
+      },
+      dns: {
+        servers: [
+          { tag: "google", address: "tls://8.8.8.8", detour: "direct" },
+          { tag: "local", address: "223.5.5.5", detour: "direct" }
+        ],
+        rules: [
+          { outbound: "any", server: "local" }
+        ],
+        final: "google"
+      },
+      inbounds: [],
+      outbounds: [],
+      route: {}
+    }' > "$HOME/agsbx/sb.json"
 }
 
 add_hysteria2_singbox() {
@@ -150,7 +165,8 @@ add_hysteria2_singbox() {
     fi
     log_info "添加 Hysteria2: $port_hy2"
     
-    cat >> "$HOME/agsbx/sb.json" <<EOF
+    local json_block
+    json_block=$(cat <<EOF
     {
         "type": "hysteria2",
         "tag": "hy2-sb",
@@ -161,7 +177,7 @@ add_hysteria2_singbox() {
                 "password": "${uuid}"
             }
         ],
-        "ignore_client_bandwidth":false,
+        "ignore_client_bandwidth": false,
         "tls": {
             "enabled": true,
             "alpn": [
@@ -169,9 +185,15 @@ add_hysteria2_singbox() {
             ],
             "certificate_path": "$HOME/agsbx/cert.pem",
             "key_path": "$HOME/agsbx/private.key"
+        },
+        "masquerade": {
+            "type": "proxy",
+            "url": "https://www.bing.com/"
         }
-    },
+    }
 EOF
+)
+    jq --argjson new "$json_block" '.inbounds += [$new]' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
 }
 
 add_tuic_singbox() {
@@ -185,7 +207,8 @@ add_tuic_singbox() {
     fi
     log_info "添加 Tuic: $port_tu"
     
-    cat >> "$HOME/agsbx/sb.json" <<EOF
+    local json_block
+    json_block=$(cat <<EOF
         {
             "type":"tuic",
             "tag": "tuic5-sb",
@@ -198,6 +221,7 @@ add_tuic_singbox() {
                 }
             ],
             "congestion_control": "bbr",
+            "udp_relay_mode": "native",
             "tls":{
                 "enabled": true,
                 "alpn": [
@@ -206,8 +230,10 @@ add_tuic_singbox() {
                 "certificate_path": "$HOME/agsbx/cert.pem",
                 "key_path": "$HOME/agsbx/private.key"
             }
-        },
+        }
 EOF
+)
+    jq --argjson new "$json_block" '.inbounds += [$new]' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
 }
 
 add_anytls_singbox() {
@@ -220,7 +246,8 @@ add_anytls_singbox() {
     fi
     log_info "添加 Anytls: $port_an"
     
-    cat >> "$HOME/agsbx/sb.json" <<EOF
+    local json_block
+    json_block=$(cat <<EOF
         {
             "type":"anytls",
             "tag":"anytls-sb",
@@ -232,14 +259,20 @@ add_anytls_singbox() {
                   "password":"${uuid}"
                 }
             ],
-            "padding_scheme":[],
+            "padding_scheme": [
+                "0-100:100-500",
+                "100-500:500-1000",
+                "500-1000:1000-1500"
+            ],
             "tls":{
                 "enabled": true,
                 "certificate_path": "$HOME/agsbx/cert.pem",
                 "key_path": "$HOME/agsbx/private.key"
             }
-        },
+        }
 EOF
+)
+    jq --argjson new "$json_block" '.inbounds += [$new]' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
 }
 
 add_anyreality_singbox() {
@@ -253,7 +286,8 @@ add_anyreality_singbox() {
     fi
     log_info "添加 Any-Reality: $port_ar"
     
-    cat >> "$HOME/agsbx/sb.json" <<EOF
+    local json_block
+    json_block=$(cat <<EOF
         {
             "type": "vless",
             "tag": "vless-reality-sb",
@@ -278,8 +312,10 @@ add_anyreality_singbox() {
                     "short_id": ["$short_id_s"]
                 }
             }
-        },
+        }
 EOF
+)
+    jq --argjson new "$json_block" '.inbounds += [$new]' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
 }
 
 add_shadowsocks_singbox() {
@@ -292,16 +328,23 @@ add_shadowsocks_singbox() {
     fi
     log_info "添加 Shadowsocks: $port_ss"
     
-    cat >> "$HOME/agsbx/sb.json" <<EOF
+    local json_block
+    json_block=$(cat <<EOF
         {
             "type": "shadowsocks",
             "tag":"ss-2022",
             "listen": "::",
             "listen_port": $port_ss,
             "method": "2022-blake3-aes-256-gcm",
-            "password": "$sskey"
-    },  
+            "password": "$sskey",
+            "multiplex": {
+                "enabled": true,
+                "padding": true
+            }
+    }
 EOF
+)
+    jq --argjson new "$json_block" '.inbounds += [$new]' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
 }
 
 add_vmess_singbox() {
@@ -321,7 +364,8 @@ add_vmess_singbox() {
     fi
     log_info "添加 Vmess (Sing-box): $port_vm_ws"
     
-    cat >> "$HOME/agsbx/sb.json" <<EOF
+    local json_block
+    json_block=$(cat <<EOF
 {
         "type": "vmess",
         "tag": "vmess-sb",
@@ -337,8 +381,10 @@ add_vmess_singbox() {
             "type": "http",
             "path": "${uuid}-vm"
         }
-    },
+    }
 EOF
+)
+    jq --argjson new "$json_block" '.inbounds += [$new]' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
 }
 
 add_socks_singbox() {
@@ -357,7 +403,8 @@ add_socks_singbox() {
      
     log_info "添加 Socks5 (Sing-box): $port_so"
     
-    cat >> "$HOME/agsbx/sb.json" <<EOF
+    local json_block
+    json_block=$(cat <<EOF
     {
       "tag": "socks5-sb",
       "type": "socks",
@@ -369,26 +416,23 @@ add_socks_singbox() {
       "password": "${uuid}"
       }
      ]
-    },
+    }
 EOF
+)
+    jq --argjson new "$json_block" '.inbounds += [$new]' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
 }
 
 configure_singbox_outbound() {
-    # Fix trailing comma
-    sed -i '${s/,\s*$//}' "$HOME/agsbx/sb.json"
+    local outbounds
+    outbounds="["
     
-    cat >> "$HOME/agsbx/sb.json" <<EOF
-  ],
-  "outbounds": [
-    {
-      "type": "direct",
-      "tag": "direct"
-    }
-EOF
+    # Defaults
+    outbounds+="{\"type\": \"direct\", \"tag\": \"direct\"},"
+    outbounds+="{\"type\": \"dns\", \"tag\": \"dns-out\"}"
 
     # Add Wireguard if WARP is used
     if [[ "$s1outtag" == *"warp"* ]] || [[ "$s2outtag" == *"warp"* ]]; then
-        cat >> "$HOME/agsbx/sb.json" <<EOF
+        outbounds+=$(cat <<EOF
     ,{
       "type": "wireguard",
       "tag": "warp-out",
@@ -412,11 +456,17 @@ EOF
       ]
     }
 EOF
+)
     fi
-
-    cat >> "$HOME/agsbx/sb.json" <<EOF
-  ],
-  "route": {
+    outbounds+="]"
+    
+    # Use variable to update outbounds
+    jq --argjson new_out "$outbounds" '.outbounds = $new_out' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
+    
+    # Route rules
+    local route
+    route=$(cat <<EOF
+    {
         "rules": [
             {
                 "protocol": "dns",
@@ -437,8 +487,9 @@ EOF
         "auto_detect_interface": true,
         "final": "${s2outtag}"
     }
-}
 EOF
+)
+     jq --argjson new_route "$route" '.route = $new_route' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
 }
 
 start_singbox_service() {
@@ -454,7 +505,8 @@ NoNewPrivileges=yes
 LimitNPROC=512000
 LimitNOFILE=512000
 TimeoutStartSec=0
-ExecStart=/root/agsbx/sing-box run -c /root/agsbx/sb.json
+ExecStartPre=/bin/bash ${BASE_DIR}/main.sh regen_no_restart
+ExecStart=${HOME}/agsbx/sing-box run -c ${HOME}/agsbx/sb.json
 Restart=on-failure
 RestartSec=5s
 StandardOutput=journal
@@ -469,8 +521,8 @@ EOF
         cat > /etc/init.d/sing-box <<EOF
 #!/sbin/openrc-run
 description="sb service"
-command="/root/agsbx/sing-box"
-command_args="run -c /root/agsbx/sb.json"
+command="${HOME}/agsbx/sing-box"
+command_args="run -c ${HOME}/agsbx/sb.json"
 command_background=yes
 pidfile="/run/sing-box.pid"
 command_background="yes"
@@ -483,6 +535,6 @@ EOF
         rc-service sing-box start >/dev/null 2>&1
     else
         kill -15 $(pgrep -f 'agsbx/sing-box' 2>/dev/null) 2>/dev/null
-        nohup "$HOME/agsbx/sing-box" run -c "$HOME/agsbx/sb.json" >/dev/null 2>&1 &
+        nohup "$HOME/agsbx/sing-box" run -c "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.log" 2>&1 &
     fi
 }

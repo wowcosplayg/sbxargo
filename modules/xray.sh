@@ -54,6 +54,7 @@ install_xray_core() {
 
 generate_xray_keys() {
     mkdir -p "$HOME/agsbx/xrk"
+    chmod 700 "$HOME/agsbx/xrk"
     
     # Reality Keys
     if [ -n "$xhp" ] || [ -n "$vlp" ]; then
@@ -107,13 +108,34 @@ generate_xray_keys() {
 }
 
 init_xray_config() {
-    cat > "$HOME/agsbx/xr.json" <<EOF
-{
-  "log": {
-  "loglevel": "none"
-  },
-  "inbounds": [
-EOF
+    require_jq
+    
+    # Init base config using jq
+    jq -n '{
+      log: { loglevel: "warning" },
+      dns: {
+        servers: [
+          "https+local://8.8.8.8/dns-query",
+          "8.8.8.8",
+          "1.1.1.1",
+          "localhost"
+        ]
+      },
+      policy: {
+        levels: {
+          "0": {
+            "handshake": 4,
+            "connIdle": 300,
+            "uplinkOnly": 2,
+            "downlinkOnly": 5,
+            "bufferSize": 4
+          }
+        }
+      },
+      inbounds: [],
+      outbounds: [],
+      routing: { domainStrategy: "IPOnDemand", rules: [] }
+    }' > "$HOME/agsbx/xr.json"
 }
 
 add_reality_xray() {
@@ -129,7 +151,8 @@ add_reality_xray() {
     
     log_info "添加 Vless-Reality: $port_vl_re"
     
-    cat >> "$HOME/agsbx/xr.json" <<EOF
+    local json_block
+    json_block=$(cat <<EOF
     {
         "tag":"reality-vision",
         "listen": "::",
@@ -162,8 +185,11 @@ add_reality_xray() {
       "destOverride": ["http", "tls", "quic"],
       "metadataOnly": false
       }
-    },
+    }
 EOF
+)
+    # Use tmp file to update
+    jq --argjson new "$json_block" '.inbounds += [$new]' "$HOME/agsbx/xr.json" > "$HOME/agsbx/xr.json.tmp" && mv "$HOME/agsbx/xr.json.tmp" "$HOME/agsbx/xr.json"
 }
 
 add_xhttp_xray() {
@@ -178,7 +204,8 @@ add_xhttp_xray() {
 
         log_info "添加 Vless-xhttp-reality: $port_xh"
         
-        cat >> "$HOME/agsbx/xr.json" <<EOF
+        local json_block
+        json_block=$(cat <<EOF
     {
       "tag":"xhttp-reality",
       "listen": "::",
@@ -215,8 +242,10 @@ add_xhttp_xray() {
         "destOverride": ["http", "tls", "quic"],
         "metadataOnly": false
       }
-    },
+    }
 EOF
+)
+        jq --argjson new "$json_block" '.inbounds += [$new]' "$HOME/agsbx/xr.json" > "$HOME/agsbx/xr.json.tmp" && mv "$HOME/agsbx/xr.json.tmp" "$HOME/agsbx/xr.json"
     fi
 
     # Vless-xhttp-enc
@@ -234,7 +263,8 @@ EOF
             update_config_var "cdnym" "$cdnym"
         fi
         
-        cat >> "$HOME/agsbx/xr.json" <<EOF
+        local json_block
+        json_block=$(cat <<EOF
     {
       "tag":"vless-xhttp",
       "listen": "::",
@@ -261,8 +291,10 @@ EOF
         "destOverride": ["http", "tls", "quic"],
         "metadataOnly": false
       }
-    },
+    }
 EOF
+)
+        jq --argjson new "$json_block" '.inbounds += [$new]' "$HOME/agsbx/xr.json" > "$HOME/agsbx/xr.json.tmp" && mv "$HOME/agsbx/xr.json.tmp" "$HOME/agsbx/xr.json"
     fi
     
     # Vless-ws-enc (renamed logic from vwp)
@@ -280,7 +312,8 @@ EOF
             update_config_var "cdnym" "$cdnym"
         fi
         
-        cat >> "$HOME/agsbx/xr.json" <<EOF
+        local json_block
+        json_block=$(cat <<EOF
     {
       "tag":"vless-xhttp-cdn",
       "listen": "::",
@@ -306,8 +339,10 @@ EOF
         "destOverride": ["http", "tls", "quic"],
         "metadataOnly": false
       }
-    },
+    }
 EOF
+)
+        jq --argjson new "$json_block" '.inbounds += [$new]' "$HOME/agsbx/xr.json" > "$HOME/agsbx/xr.json.tmp" && mv "$HOME/agsbx/xr.json.tmp" "$HOME/agsbx/xr.json"
     fi
 }
 
@@ -321,13 +356,20 @@ add_vmess_xray() {
         update_config_var "port_vm_ws" "$port_vm_ws"
     fi
 
+    # Conflict Check: If Sing-box is installed/configured with VMess, we skip Xray VMess on same port
+    if [ -f "$HOME/agsbx/sb.json" ] && grep -q "vmess-sb" "$HOME/agsbx/sb.json"; then
+        log_warn "检测到 Sing-box 已接管 VMess 协议，Xray VMess 将自动禁用以避免端口冲突。"
+        return
+    fi
+
     log_info "添加 Vmess-xhttp: $port_vm_ws"
     
     if [ -n "$cdnym" ]; then
         update_config_var "cdnym" "$cdnym"
     fi
     
-    cat >> "$HOME/agsbx/xr.json" <<EOF
+    local json_block
+    json_block=$(cat <<EOF
         {
             "tag": "vmess-xhttp-argo",
             "listen": "::",
@@ -352,8 +394,10 @@ add_vmess_xray() {
             "destOverride": ["http", "tls", "quic"],
             "metadataOnly": false
             }
-         }, 
+         }
 EOF
+)
+    jq --argjson new "$json_block" '.inbounds += [$new]' "$HOME/agsbx/xr.json" > "$HOME/agsbx/xr.json.tmp" && mv "$HOME/agsbx/xr.json.tmp" "$HOME/agsbx/xr.json"
 }
 
 add_socks_xray() {
@@ -367,9 +411,16 @@ add_socks_xray() {
         update_config_var "port_so" "$port_so"
     fi
 
+    # Conflict Check: If Sing-box is installed/configured with Socks5, we skip Xray VMess on same port
+    if [ -f "$HOME/agsbx/sb.json" ] && grep -q "socks5-sb" "$HOME/agsbx/sb.json"; then
+        log_warn "检测到 Sing-box 已接管 Socks5 协议，Xray Socks5 将自动禁用以避免端口冲突。"
+        return
+    fi
+
     log_info "添加 Socks5: $port_so"
     
-    cat >> "$HOME/agsbx/xr.json" <<EOF
+    local json_block
+    json_block=$(cat <<EOF
         {
          "tag": "socks5-xr",
          "port": ${port_so},
@@ -390,71 +441,71 @@ add_socks_xray() {
             "destOverride": ["http", "tls", "quic"],
             "metadataOnly": false
             }
-         }, 
+         }
 EOF
+)
+    jq --argjson new "$json_block" '.inbounds += [$new]' "$HOME/agsbx/xr.json" > "$HOME/agsbx/xr.json.tmp" && mv "$HOME/agsbx/xr.json.tmp" "$HOME/agsbx/xr.json"
 }
 
 configure_xray_outbound() {
-    # Fix trailing comma
-    sed -i '${s/,\s*$//}' "$HOME/agsbx/xr.json"
+    # 1. Add Direct and Warp outbounds
+    local outbounds
+    outbounds="[]"
     
-    cat >> "$HOME/agsbx/xr.json" <<EOF
-  ],
-  "outbounds": [
-    {
-      "protocol": "freedom",
-      "tag": "direct",
-      "settings": {
-      "domainStrategy":"${xryx}"
+    # Basic Direct
+    outbounds=$(echo "$outbounds" | jq ". + [{
+      \"protocol\": \"freedom\",
+      \"tag\": \"direct\",
+      \"settings\": {
+      \"domainStrategy\":\"${xryx}\"
      }
-    }
-EOF
-
+    }]")
+    
     # Add Wireguard if WARP is used
     if [[ "$x1outtag" == *"warp"* ]] || [[ "$x2outtag" == *"warp"* ]]; then
-        cat >> "$HOME/agsbx/xr.json" <<EOF
-    ,{
-      "tag": "x-warp-out",
-      "protocol": "wireguard",
-      "settings": {
-        "secretKey": "${pvk}",
-        "address": [
-          "172.16.0.2/32",
-          "${wpv6}/128"
+        outbounds=$(echo "$outbounds" | jq ". + [{
+      \"tag\": \"x-warp-out\",
+      \"protocol\": \"wireguard\",
+      \"settings\": {
+        \"secretKey\": \"${pvk}\",
+        \"address\": [
+          \"172.16.0.2/32\",
+          \"${wpv6}/128\"
         ],
-        "mtu": 1280,
-        "peers": [
+        \"mtu\": 1280,
+        \"peers\": [
           {
-            "publicKey": "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
-            "allowedIPs": [
-              "0.0.0.0/0",
-              "::/0"
+            \"publicKey\": \"bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=\",
+            \"allowedIPs\": [
+              \"0.0.0.0/0\",
+              \"::/0\"
             ],
-            "endpoint": "${xendip}:2408",
-            "keepAlive": 15
+            \"endpoint\": \"${xendip}:2408\",
+            \"keepAlive\": 15
           }
         ],
-        "reserved": ${res}
+        \"reserved\": ${res}
         }
     },
     {
-      "tag":"warp-out",
-      "protocol":"freedom",
-        "settings":{
-        "domainStrategy":"${wxryx}"
+      \"tag\":\"warp-out\",
+      \"protocol\":\"freedom\",
+        \"settings\":{
+        \"domainStrategy\":\"${wxryx}\"
        },
-       "proxySettings":{
-       "tag":"x-warp-out"
+       \"proxySettings\":{
+       \"tag\":\"x-warp-out\"
      }
-}
-EOF
+}]")
     fi
-
-    cat >> "$HOME/agsbx/xr.json" <<EOF
-  ],
-  "routing": {
-    "domainStrategy": "IPOnDemand",
-    "rules": [
+    
+    # Update Outbounds
+    jq --argjson new_out "$outbounds" '.outbounds = $new_out' "$HOME/agsbx/xr.json" > "$HOME/agsbx/xr.json.tmp" && mv "$HOME/agsbx/xr.json.tmp" "$HOME/agsbx/xr.json"
+    
+    # Update Routing
+    local rules
+    rules=$(cat <<EOF
+    [
       {
         "type": "field",
         "ip": [ ${xip} ],
@@ -467,9 +518,9 @@ EOF
         "outboundTag": "${x2outtag}"
       }
     ]
-  }
-}
 EOF
+)
+    jq --argjson new_rules "$rules" '.routing.rules = $new_rules | .routing.domainStrategy = "IPOnDemand"' "$HOME/agsbx/xr.json" > "$HOME/agsbx/xr.json.tmp" && mv "$HOME/agsbx/xr.json.tmp" "$HOME/agsbx/xr.json"
 }
 
 start_xray_service() {
@@ -485,7 +536,8 @@ NoNewPrivileges=yes
 LimitNPROC=512000
 LimitNOFILE=512000
 TimeoutStartSec=0
-ExecStart=/root/agsbx/xray run -c /root/agsbx/xr.json
+ExecStartPre=/bin/bash ${BASE_DIR}/main.sh regen_no_restart
+ExecStart=${HOME}/agsbx/xray run -c ${HOME}/agsbx/xr.json
 Restart=on-failure
 RestartSec=5s
 StandardOutput=journal
@@ -500,8 +552,8 @@ EOF
         cat > /etc/init.d/xray <<EOF
 #!/sbin/openrc-run
 description="xr service"
-command="/root/agsbx/xray"
-command_args="run -c /root/agsbx/xr.json"
+command="${HOME}/agsbx/xray"
+command_args="run -c ${HOME}/agsbx/xr.json"
 command_background=yes
 pidfile="/run/xray.pid"
 command_background="yes"
@@ -514,6 +566,6 @@ EOF
         rc-service xray restart >/dev/null 2>&1
     else
         kill -15 $(pgrep -f 'agsbx/xray' 2>/dev/null) 2>/dev/null
-        nohup "$HOME/agsbx/xray" run -c "$HOME/agsbx/xr.json" >/dev/null 2>&1 &
+        nohup "$HOME/agsbx/xray" run -c "$HOME/agsbx/xr.json" > "$HOME/agsbx/xr.log" 2>&1 &
     fi
 }

@@ -62,23 +62,29 @@ if [[ "$deploy_method" == "2" ]]; then
     fi
     
     # Build Image
-    log_info "构建 Docker 镜像 (image: argosbx-image)..."
-    docker build -t argosbx-image .
+    log_info "检查 Docker 镜像..."
+    if docker image inspect argosbx-image >/dev/null 2>&1; then
+        read -p "镜像 argosbx-image 已存在，是否重新构建? (y/N): " rebuild_choice
+        if [[ "${rebuild_choice,,}" == "y" ]]; then
+            log_info "正在重新构建 Docker 镜像..."
+            docker build -t argosbx-image .
+        else
+            log_info "跳过构建，使用现有镜像。"
+        fi
+    else
+        log_info "构建 Docker 镜像 (image: argosbx-image)..."
+        docker build -t argosbx-image .
+    fi
     
     # Construct Run Command
     log_info "生成并执行 Docker 命令..."
     
     # Remove old container if exists
-    docker rm -f argosbx 2>/dev/null
-    
-    # 配置文件已由 interactive_config 生成至 $HOME/agsbx/config.env
-    
     log_info "正在启动 Docker 容器..."
-    DOCKER_CMD="docker run -d --name argosbx --restart=always --network=host -v $HOME/agsbx:/root/agsbx argosbx-image"
+    DOCKER_CMD=(docker run -d --name argosbx --restart=always --network=host -v "$HOME/agsbx:/root/agsbx" argosbx-image)
     
-    echo "执行命令: $DOCKER_CMD"
-    echo "执行命令: $DOCKER_CMD"
-    eval "$DOCKER_CMD"
+    echo "执行命令: ${DOCKER_CMD[*]}"
+    "${DOCKER_CMD[@]}"
     
     if [ $? -eq 0 ]; then
         log_info "Docker 部署成功！"
