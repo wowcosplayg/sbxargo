@@ -603,9 +603,9 @@ generate_all_links() {
         fi
         
         if echo "$xr_content" | grep -q 'vless-xhttp-cdn'; then
-             echo "vless://$uuid@$server_ip:$port_vw?encryption=$enkey&type=xhttp&path=$uuid-vw&mode=packet-up#${sxname}vl-xhttp-enc-$hostname" >> "$HOME/agsbx/jh.txt"
+             echo "vless://$uuid@$server_ip:$port_vw?encryption=$enkey&type=xhttp&path=$uuid-vw&mode=packet-up#${sxname}vl-xhttp-packet-$hostname" >> "$HOME/agsbx/jh.txt"
              if [ -n "$xvvmcdnym" ]; then
-                 echo "vless://$uuid@$xvvmcdnym:$port_vw?encryption=$enkey&type=xhttp&host=$xvvmcdnym&path=$uuid-vw&mode=packet-up#${sxname}vl-xhttp-enc-cdn-$hostname" >> "$HOME/agsbx/jh.txt"
+                 echo "vless://$uuid@$xvvmcdnym:$port_vw?encryption=$enkey&type=xhttp&host=$xvvmcdnym&path=$uuid-vw&mode=packet-up#${sxname}vl-xhttp-packet-cdn-$hostname" >> "$HOME/agsbx/jh.txt"
              fi
         fi
         

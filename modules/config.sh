@@ -252,11 +252,11 @@ interactive_config() {
     update_config_var "vmp" "$vmp"
     [ "$vmp" = "yes" ] && update_config_var "port_vm_ws" "$port_vm_ws"
     
-    # Vless-WS-CDN
+    # Vless-WS-CDN (Packet Mode)
     curr=${port_vw:-$(get_v port_vw)}
     hint="默认随机"
     [ -n "$curr" ] && hint="当前: $curr"
-    read -p "是否启用 Vless-WS-CDN (Vless-xhttp模式)? (y/n): " choice
+    read -p "是否启用 Vless-XHTTP-Packet (原 WS-CDN, 适合 CDN 转发)? (y/n): " choice
     if [[ "$choice" == "y" ]]; then 
         vwp=yes
         read -p "请输入端口 ($hint): " input_port

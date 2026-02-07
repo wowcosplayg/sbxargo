@@ -135,7 +135,7 @@ init_singbox_config() {
     jq -n '{
       log: {
         disabled: false,
-        level: "info",
+        level: "warn",
         timestamp: true
       },
       dns: {
@@ -470,7 +470,7 @@ EOF
         "rules": [
             {
                 "protocol": "dns",
-                "outbound": "dns-out"
+                "action": "hijack-dns"
             },
             {
                 "ip_is_private": true,
