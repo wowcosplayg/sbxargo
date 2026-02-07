@@ -110,7 +110,6 @@ generate_singbox_keys() {
     if [ -n "$ssp" ]; then
         if [ ! -e "$HOME/agsbx/sskey" ]; then
             sskey=$("$HOME/agsbx/sing-box" generate rand 32 --base64)
-            sskey=$("$HOME/agsbx/sing-box" generate rand 32 --base64)
             update_config_var "sskey" "$sskey"
         fi
     fi
@@ -138,7 +137,12 @@ init_singbox_config() {
         level: "warn",
         timestamp: true
       },
-      dns: {},
+      dns: {
+        servers: [
+            { "tag": "google", "address": "tls://8.8.8.8", "detour": "direct" }
+        ],
+        final: "google"
+      },
       inbounds: [],
       outbounds: [],
       route: {}
