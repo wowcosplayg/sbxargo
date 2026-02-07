@@ -138,16 +138,7 @@ init_singbox_config() {
         level: "warn",
         timestamp: true
       },
-      dns: {
-        servers: [
-          { tag: "google", address: "tls://8.8.8.8", detour: "direct" },
-          { tag: "local", address: "223.5.5.5", detour: "direct" }
-        ],
-        rules: [
-          { outbound: "any", server: "local" }
-        ],
-        final: "google"
-      },
+      dns: {},
       inbounds: [],
       outbounds: [],
       route: {}
@@ -427,8 +418,7 @@ configure_singbox_outbound() {
     outbounds="["
     
     # Defaults
-    outbounds+="{\"type\": \"direct\", \"tag\": \"direct\"},"
-    outbounds+="{\"type\": \"dns\", \"tag\": \"dns-out\"}"
+    outbounds+="{\"type\": \"direct\", \"tag\": \"direct\"}"
 
     # Add Wireguard if WARP is used
     if [[ "$s1outtag" == *"warp"* ]] || [[ "$s2outtag" == *"warp"* ]]; then
@@ -468,10 +458,6 @@ EOF
     route=$(cat <<EOF
     {
         "rules": [
-            {
-                "protocol": "dns",
-                "action": "hijack-dns"
-            },
             {
                 "ip_is_private": true,
                 "outbound": "direct"
