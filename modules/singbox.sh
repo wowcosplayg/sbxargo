@@ -212,7 +212,7 @@ add_tuic_singbox() {
                 }
             ],
             "congestion_control": "bbr",
-            "udp_relay_mode": "native",
+
             "tls":{
                 "enabled": true,
                 "alpn": [
