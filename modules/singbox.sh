@@ -203,7 +203,7 @@ init_singbox_config() {
       },
       dns: {
         servers: [
-            { "type": "https", "server": "8.8.8.8", "tag": "remote-doh", "detour": "remote-tcp" },
+            { "type": "https", "server": "8.8.8.8", "tag": "remote-doh" },
             { "type": "tcp", "server": "1.1.1.1", "tag": "remote-tcp" },
             { "type": "local", "tag": "local" }
         ],
@@ -516,7 +516,6 @@ configure_singbox_outbound() {
     
     # Defaults
     outbounds+="{\"type\": \"direct\", \"tag\": \"direct\"}"
-    outbounds+=",{\"type\": \"direct\", \"tag\": \"remote-tcp\"}"
 
     # Add WARP Proxy Outbound if WARP is used
     if [[ "$s1outtag" == *"warp"* ]] || [[ "$s2outtag" == *"warp"* ]]; then
