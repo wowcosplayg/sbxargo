@@ -147,7 +147,7 @@ init_xray_config() {
     
     # Init base config using jq
     jq -n '{
-      log: { loglevel: "warning" },
+      log: { loglevel: "error" },
       dns: {
         servers: [
           "https+local://8.8.8.8/dns-query",
@@ -332,7 +332,8 @@ EOF
       "settings": {
         "clients": [
           {
-            "id": "${uuid}"
+            "id": "${uuid}",
+            "flow": "xtls-rprx-vision"
           }
         ],
         "decryption": "${dekey}"
@@ -406,7 +407,8 @@ EOF
       "settings": {
         "clients": [
           {
-            "id": "${uuid}"
+            "id": "${uuid}",
+            "flow": "xtls-rprx-vision"
           }
         ],
         "decryption": "${dekey}"
@@ -487,7 +489,8 @@ EOF
             "settings": {
                 "clients": [
                     {
-                        "id": "${uuid}"
+                        "id": "${uuid}",
+                        "flow": "xtls-rprx-vision"
                     }
                 ]
             },
