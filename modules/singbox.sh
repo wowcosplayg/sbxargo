@@ -203,10 +203,11 @@ init_singbox_config() {
       },
       dns: {
         servers: [
-            { "type": "local", "tag": "local" },
-            { "address": "1.1.1.1", "tag": "remote" }
+            { "address": "https://8.8.8.8/dns-query", "tag": "remote-doh", "detour": "direct" },
+            { "address": "tcp://1.1.1.1", "tag": "remote-tcp", "detour": "direct" },
+            { "type": "local", "tag": "local", "detour": "direct" }
         ],
-        final: "local",
+        final: "remote-doh",
         strategy: "prefer_ipv4"
       },
       "ntp": {"enabled": true, "server": "time.windows.com", "server_port": 123, "interval": "30m"},
