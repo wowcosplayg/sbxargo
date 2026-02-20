@@ -203,14 +203,14 @@ init_singbox_config() {
       },
       dns: {
         servers: [
-            { "address": "https://8.8.8.8/dns-query", "tag": "remote-doh", "detour": "direct" },
-            { "address": "tcp://1.1.1.1", "tag": "remote-tcp", "detour": "direct" },
-            { "type": "local", "tag": "local", "detour": "direct" }
+            { "type": "https", "server": "8.8.8.8", "tag": "remote-doh" },
+            { "type": "tcp", "server": "1.1.1.1", "tag": "remote-tcp" },
+            { "type": "local", "tag": "local" }
         ],
         final: "remote-doh",
         strategy: "prefer_ipv4"
       },
-      "ntp": {"enabled": true, "server": "time.cloudflare.com", "server_port": 123, "interval": "30m", "detour": "direct"},
+      "ntp": {"enabled": true, "server": "time.cloudflare.com", "server_port": 123, "interval": "30m"},
       inbounds: [],
       outbounds: [],
       route: {}
@@ -544,7 +544,15 @@ EOF
                 "outbound": "direct"
             },
             {
+                "protocol": "ntp",
+                "outbound": "direct"
+            },
+            {
                 "port": 53,
+                "outbound": "direct"
+            },
+            {
+                "port": 123,
                 "outbound": "direct"
             },
             {
@@ -560,7 +568,8 @@ EOF
             }
         ],
         "auto_detect_interface": true,
-        "final": "${s2outtag}"
+        "final": "${s2outtag}",
+        "default_domain_resolver": "local"
     }
 EOF
 )
