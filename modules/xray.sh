@@ -252,8 +252,7 @@ add_xhttp_xray() {
       "settings": {
         "clients": [
           {
-            "id": "${uuid}",
-            "flow": "xtls-rprx-vision"
+            "id": "${uuid}"
           }
         ],
         "decryption": "${dekey}"
@@ -332,8 +331,7 @@ EOF
       "settings": {
         "clients": [
           {
-            "id": "${uuid}",
-            "flow": "xtls-rprx-vision"
+            "id": "${uuid}"
           }
         ],
         "decryption": "${dekey}"
@@ -407,8 +405,7 @@ EOF
       "settings": {
         "clients": [
           {
-            "id": "${uuid}",
-            "flow": "xtls-rprx-vision"
+            "id": "${uuid}"
           }
         ],
         "decryption": "${dekey}"
@@ -489,8 +486,7 @@ EOF
             "settings": {
                 "clients": [
                     {
-                        "id": "${uuid}",
-                        "flow": "xtls-rprx-vision"
+                        "id": "${uuid}"
                     }
                 ]
             },
