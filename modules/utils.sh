@@ -784,8 +784,8 @@ generate_all_links() {
     local v_port=""
     local v_path=""
     if grep -q 'vmess-xhttp' "$HOME/agsbx/xr.json" 2>/dev/null; then
-        v_port=$(echo "$xr_content" | jq -r '.inbounds[] | select(.tag == "vmess-xhttp") | .port // empty')
-        v_path=$(echo "$xr_content" | jq -r '.inbounds[] | select(.tag == "vmess-xhttp") | .streamSettings.wsSettings.path // empty')
+        v_port=$(echo "$xr_content" | jq -r '.inbounds[] | select(.tag == "vmess-xhttp-argo" or .tag == "vmess-xhttp") | .port // empty')
+        v_path=$(echo "$xr_content" | jq -r '.inbounds[] | select(.tag == "vmess-xhttp-argo" or .tag == "vmess-xhttp") | .streamSettings.wsSettings.path // empty')
     elif grep -q 'vmess-sb' "$HOME/agsbx/sb.json" 2>/dev/null; then
         local sb_content=$(cat "$HOME/agsbx/sb.json" 2>/dev/null)
         v_port=$(echo "$sb_content" | jq -r '.inbounds[] | select(.tag == "vmess-sb") | .listen_port // empty')
@@ -812,7 +812,7 @@ generate_all_links() {
     if [ -n "$argodomain" ]; then
         vlvm="${vlvm}"
         if [ "$vlvm" = "Vmess" ]; then
-             local vp_path=$(echo "$xr_content" | jq -r '.inbounds[] | select(.tag == "vmess-xhttp") | .streamSettings.wsSettings.path // empty')
+             local vp_path=$(echo "$xr_content" | jq -r '.inbounds[] | select(.tag == "vmess-xhttp-argo" or .tag == "vmess-xhttp") | .streamSettings.wsSettings.path // empty')
              [ -z "$vp_path" ] && vp_path=$(echo "$sb_content" | jq -r '.inbounds[] | select(.tag == "vmess-sb") | .transport.path // empty')
              
              echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-tls-argo-$hostname-443\", \"add\": \"$argodomain\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"${vp_path}\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
