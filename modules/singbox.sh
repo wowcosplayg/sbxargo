@@ -204,8 +204,8 @@ init_singbox_config() {
       dns: {
         servers: [
             { "type": "https", "server": "8.8.8.8", "tag": "remote-doh", "detour": "remote-tcp" },
-            { "type": "tcp", "server": "1.1.1.1", "tag": "remote-tcp", "detour": "direct" },
-            { "type": "local", "tag": "local", "detour": "direct" }
+            { "type": "tcp", "server": "1.1.1.1", "tag": "remote-tcp" },
+            { "type": "local", "tag": "local" }
         ],
         final: "remote-doh",
         strategy: "prefer_ipv4"
