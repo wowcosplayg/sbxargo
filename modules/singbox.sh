@@ -516,6 +516,7 @@ configure_singbox_outbound() {
     
     # Defaults
     outbounds+="{\"type\": \"direct\", \"tag\": \"direct\"}"
+    outbounds+=",{\"type\": \"direct\", \"tag\": \"remote-tcp\"}"
 
     # Add WARP Proxy Outbound if WARP is used
     if [[ "$s1outtag" == *"warp"* ]] || [[ "$s2outtag" == *"warp"* ]]; then
