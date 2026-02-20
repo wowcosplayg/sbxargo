@@ -210,7 +210,7 @@ init_singbox_config() {
         final: "remote-doh",
         strategy: "prefer_ipv4"
       },
-      "ntp": {"enabled": true, "server": "time.windows.com", "server_port": 123, "interval": "30m"},
+      "ntp": {"enabled": true, "server": "time.cloudflare.com", "server_port": 123, "interval": "30m", "detour": "direct"},
       inbounds: [],
       outbounds: [],
       route: {}
