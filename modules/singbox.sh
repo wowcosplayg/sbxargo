@@ -203,9 +203,9 @@ init_singbox_config() {
       },
       dns: {
         servers: [
-            { "type": "https", "server": "8.8.8.8", "tag": "remote-doh" },
-            { "type": "tcp", "server": "1.1.1.1", "tag": "remote-tcp" },
-            { "type": "local", "tag": "local" }
+            { "type": "https", "server": "8.8.8.8", "tag": "remote-doh", "detour": "remote-tcp" },
+            { "type": "tcp", "server": "1.1.1.1", "tag": "remote-tcp", "detour": "direct" },
+            { "type": "local", "tag": "local", "detour": "direct" }
         ],
         final: "remote-doh",
         strategy: "prefer_ipv4"
@@ -567,7 +567,7 @@ EOF
                 "outbound": "${s2outtag}"
             }
         ],
-        "auto_detect_interface": true,
+        "auto_detect_interface": false,
         "final": "${s2outtag}",
         "default_domain_resolver": "local"
     }
