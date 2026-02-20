@@ -9,8 +9,13 @@ chmod +x /app/main.sh /app/modules/*.sh
 
 # Run the Main Orchestrator
 # This will configure and start services in background (nohup mode)
-echo "Starting Argosbx Orchestrator..."
-/app/main.sh install
+if [ -f "$WORKDIR/xr.json" ] || [ -f "$WORKDIR/sb.json" ]; then
+    echo "Existing configuration detected. Performing fast start..."
+    /app/main.sh fast_start
+else
+    echo "Starting Argosbx Orchestrator Initial Installation..."
+    /app/main.sh install
+fi
 
 # Keep container alive by tailing logs
 # We wait a bit for logs to be created

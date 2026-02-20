@@ -78,6 +78,7 @@ install_flow() {
     
     # 3. System Optimization
     optimize_system
+    enable_bbr
     
     # 5. Core Installation
     # Check if we need to install/update cores
@@ -185,6 +186,15 @@ handle_action() {
             check_system_compatibility
             regenerate_config
             log_info "Configuration regenerated (No Restart)."
+            ;;
+        fast_start)
+            check_system_compatibility
+            get_server_ip
+            regenerate_config
+            start_xray_service
+            start_singbox_service
+            check_argo_status
+            log_info "服务核心已快速热重启！"
             ;;
         *)
             log_error "未知参数: $action"

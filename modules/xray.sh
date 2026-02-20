@@ -11,41 +11,76 @@
 install_xray_core() {
     log_info "检查 Xray 内核..."
     
+    if [ -f "$HOME/agsbx/xray" ]; then
+        local ver=$("$HOME/agsbx/xray" version 2>/dev/null | awk '/^Xray/{print $2}')
+        log_info "检测到本地已存在 Xray 内核 ($ver)，跳过下载。"
+        return 0
+    fi
+    
     # Check if update is needed or force reinstall logic can be added here
     # reusing the logic from upxray but adapted
     
-    local archive_name=""
+    local archive_pattern=""
     case "$cpu" in
-        amd64) archive_name="Xray-linux-64.zip" ;;
-        arm64) archive_name="Xray-linux-arm64-v8a.zip" ;;
+        amd64) archive_pattern="Xray-linux-64" ;;
+        arm64) archive_pattern="Xray-linux-arm64-v8a" ;;
         *) log_error "不支持的架构: $cpu"; return 1 ;;
     esac
 
-    # We assume download_official_release is available (copied to main.sh or utils? No, sbxargo had it. 
-    # I should move download functions to utils.sh or install.sh. 
-    # Wait, I didn't verify if I moved download functions to install.sh.
-    # checking install.sh content... I put install_dependencies there but NOT download_official_release.
-    # I MUST ensure main.sh or install.sh has download_official_release.
-    # Refactoring decision: Put generic download functions in utils.sh or install.sh. 
-    # Let's assume for now I will add them to install.sh later or right now.
-    # Actually, I'll add them to install.sh in a separate step if I haven't.
-    # For now, I'll call a function `download_xray_release` which I'll implement here or rely on shared.
-    # To be safe and modular, I will reimplement a simple downloader here or reference a shared one.
-    # The original script had a robust one. I'll rely on `install.sh` potentially having it.
-    # I will add `download_file` and `download_official_release` to `install.sh` in a fix step.
-    # For this file, I'll assume they will be available.
+    local repo="XTLS/Xray-core"
+    local latest_url="https://api.github.com/repos/$repo/releases/latest"
     
-    # Actually, better to just call the download logic directly or via a specific function here if specific.
-    # I'll use the shared function assumption.
+    require_jq
     
-    if ! type -t download_official_release >/dev/null; then
-        # Fallback or error? I will fix install.sh to include it.
-        log_warn "download_official_release function missing, config might fail if core not present."
-    else
-        if ! download_official_release "XTLS/Xray-core" "xray" "$cpu" "$HOME/agsbx/xray" "$archive_name"; then
-            log_error "Xray 下载失败"
+    local release_json=""
+    if command -v curl >/dev/null 2>&1; then
+        release_json=$(curl -fsSL "$latest_url")
+    elif command -v wget >/dev/null 2>&1; then
+        release_json=$(wget -qO- "$latest_url")
+    fi
+    
+    local download_url=""
+    if [ -n "$release_json" ]; then
+        download_url=$(echo "$release_json" | jq -r --arg re "$archive_pattern(\\.tar\\.gz|\\.tar\\.xz|\\.zip)" '.assets[] | select(.name | test($re)) | .browser_download_url' | head -n1)
+    fi
+
+    if [ -z "$download_url" ] || [ "$download_url" == "null" ]; then
+        log_error "获取 Xray 下载链接失败"
+        return 1
+    fi
+
+    local out="$HOME/agsbx/xray"
+    local temp_dir="$HOME/agsbx/temp_xr"
+    mkdir -p "$temp_dir"
+
+    if command -v curl >/dev/null 2>&1; then
+        curl -Lo "$temp_dir/xr_archive" -# --retry 2 "$download_url"
+    elif command -v wget >/dev/null 2>&1; then
+        timeout 30 wget -O "$temp_dir/xr_archive" --tries=2 "$download_url"
+    fi
+
+    if [ -f "$temp_dir/xr_archive" ]; then
+        if echo "$download_url" | grep -qE '\.tar\.gz$|\.tgz$'; then
+            tar -xzf "$temp_dir/xr_archive" -C "$temp_dir"
+        elif echo "$download_url" | grep -qE '\.tar\.xz$'; then
+            tar -xJf "$temp_dir/xr_archive" -C "$temp_dir"
+        elif echo "$download_url" | grep -qE '\.zip$'; then
+            unzip -q "$temp_dir/xr_archive" -d "$temp_dir"
+        fi
+        local bin_path=$(find "$temp_dir" -type f -name 'xray' | head -n1)
+        if [ -n "$bin_path" ]; then
+            mv "$bin_path" "$out"
+            chmod +x "$out"
+            rm -rf "$temp_dir"
+        else
+            log_error "解压失败，未找到 xray 文件。"
+            rm -rf "$temp_dir"
             return 1
         fi
+    else
+        log_error "Xray 下载失败"
+        rm -rf "$temp_dir"
+        return 1
     fi
 
     local ver=$("$HOME/agsbx/xray" version 2>/dev/null | awk '/^Xray/{print $2}')
@@ -150,6 +185,7 @@ add_reality_xray() {
     LOG_MARKER_VLESS_REALITY="active"
     
     log_info "添加 Vless-Reality: $port_vl_re"
+    open_port "$port_vl_re" "tcp"
     
     local json_block
     json_block=$(cat <<EOF
@@ -203,8 +239,10 @@ add_xhttp_xray() {
         fi
 
         log_info "添加 Vless-xhttp-reality: $port_xh"
+        open_port "$port_xh" "tcp"
         
         local json_block
+
         json_block=$(cat <<EOF
     {
       "tag":"xhttp-reality",
@@ -214,10 +252,11 @@ add_xhttp_xray() {
       "settings": {
         "clients": [
           {
-            "id": "${uuid}"
+            "id": "${uuid}",
+            "flow": "xtls-rprx-vision"
           }
         ],
-        "decryption": "none"
+        "decryption": "${dekey}"
       },
       "streamSettings": {
         "network": "xhttp",
@@ -232,7 +271,7 @@ add_xhttp_xray() {
           "shortIds": ["$short_id_x"]
         },
         "xhttpSettings": {
-          "host": "${ym_vl_re}",
+          "host": "",
           "path": "${uuid}-xh",
           "mode": "auto"
         }
@@ -251,17 +290,37 @@ EOF
     # Vless-xhttp-enc
     if [ -n "$vxp" ]; then
         if [ -z "$port_vx" ] && [ ! -e "$HOME/agsbx/port_vx" ]; then
-            port_vx=$(shuf -i 10000-65535 -n 1)
+            if [ -n "$cdnym" ]; then
+                # CDN requires specific HTTPS ports
+                port_vx=$(shuf -e 2053 2083 2087 2096 8443 | head -n 1)
+            else
+                port_vx=$(shuf -i 10000-65535 -n 1)
+            fi
             update_config_var "port_vx" "$port_vx"
         elif [ -n "$port_vx" ]; then
             update_config_var "port_vx" "$port_vx"
         fi
 
         log_info "添加 Vless-xhttp: $port_vx"
+        open_port "$port_vx" "tcp"
         
         if [ -n "$cdnym" ]; then
             update_config_var "cdnym" "$cdnym"
         fi
+        
+        local sec_type="tls"
+        local tls_block=$(cat <<EOF
+,
+        "tlsSettings": {
+          "certificates": [
+            {
+              "certificateFile": "$HOME/agsbx/cert.pem",
+              "keyFile": "$HOME/agsbx/private.key"
+            }
+          ]
+        }
+EOF
+)
         
         local json_block
         json_block=$(cat <<EOF
@@ -280,11 +339,12 @@ EOF
       },
       "streamSettings": {
         "network": "xhttp",
+        "security": "${sec_type}",
         "xhttpSettings": {
           "host": "",
           "path": "${uuid}-vx",
           "mode": "auto"
-        }
+        }${tls_block}
       },
         "sniffing": {
         "enabled": true,
@@ -300,16 +360,40 @@ EOF
     # Vless-ws-enc (renamed logic from vwp)
     if [ -n "$vwp" ]; then
         if [ -z "$port_vw" ] && [ ! -e "$HOME/agsbx/port_vw" ]; then
-            port_vw=$(shuf -i 10000-65535 -n 1)
+            if [ -n "$cdnym" ] && [ "$argo" != "vwpt" ]; then
+                # CDN requires specific HTTPS ports
+                port_vw=$(shuf -e 2053 2083 2087 2096 8443 | head -n 1)
+            else
+                port_vw=$(shuf -i 10000-65535 -n 1)
+            fi
             update_config_var "port_vw" "$port_vw"
         elif [ -n "$port_vw" ]; then
             update_config_var "port_vw" "$port_vw"
         fi
 
         log_info "添加 Vless-ws-enc (xhttp mode): $port_vw"
+        open_port "$port_vw" "tcp"
         
         if [ -n "$cdnym" ]; then
             update_config_var "cdnym" "$cdnym"
+        fi
+        
+        local sec_type="none"
+        local tls_block=""
+        if [ "$argo" != "vwpt" ]; then
+            sec_type="tls"
+            tls_block=$(cat <<EOF
+,
+        "tlsSettings": {
+          "certificates": [
+            {
+              "certificateFile": "$HOME/agsbx/cert.pem",
+              "keyFile": "$HOME/agsbx/private.key"
+            }
+          ]
+        }
+EOF
+)
         fi
         
         local json_block
@@ -329,10 +413,11 @@ EOF
       },
       "streamSettings": {
         "network": "xhttp",
+        "security": "${sec_type}",
         "xhttpSettings": {
           "path": "${uuid}-vw",
           "mode": "packet-up"
-        }
+        }${tls_block}
       },
         "sniffing": {
         "enabled": true,
@@ -350,7 +435,12 @@ add_vmess_xray() {
     [ "$vmp" != "yes" ] && return
     
     if [ -z "$port_vm_ws" ] && [ ! -e "$HOME/agsbx/port_vm_ws" ]; then
-        port_vm_ws=$(shuf -i 10000-65535 -n 1)
+        if [ -n "$cdnym" ] && [ "$argo" != "vmpt" ]; then
+            # CDN requires specific HTTPS ports
+            port_vm_ws=$(shuf -e 2053 2083 2087 2096 8443 | head -n 1)
+        else
+            port_vm_ws=$(shuf -i 10000-65535 -n 1)
+        fi
         update_config_var "port_vm_ws" "$port_vm_ws"
     elif [ -n "$port_vm_ws" ]; then
         update_config_var "port_vm_ws" "$port_vm_ws"
@@ -363,9 +453,28 @@ add_vmess_xray() {
     fi
 
     log_info "添加 Vmess-xhttp: $port_vm_ws"
+    open_port "$port_vm_ws" "tcp"
     
     if [ -n "$cdnym" ]; then
         update_config_var "cdnym" "$cdnym"
+    fi
+    
+    local sec_type="none"
+    local tls_block=""
+    if [ "$argo" != "vmpt" ]; then
+        sec_type="tls"
+        tls_block=$(cat <<EOF
+,
+                "tlsSettings": {
+                  "certificates": [
+                    {
+                      "certificateFile": "$HOME/agsbx/cert.pem",
+                      "keyFile": "$HOME/agsbx/private.key"
+                    }
+                  ]
+                }
+EOF
+)
     fi
     
     local json_block
@@ -384,10 +493,10 @@ add_vmess_xray() {
             },
             "streamSettings": {
                 "network": "ws",
-                "security": "none",
+                "security": "${sec_type}",
                 "wsSettings": {
                   "path": "/${uuid}-vm"
-            }
+                }${tls_block}
         },
             "sniffing": {
             "enabled": true,
@@ -418,6 +527,7 @@ add_socks_xray() {
     fi
 
     log_info "添加 Socks5: $port_so"
+    open_port "$port_so" "tcp/udp"
     
     local json_block
     json_block=$(cat <<EOF
@@ -461,42 +571,20 @@ configure_xray_outbound() {
      }
     }]")
     
-    # Add Wireguard if WARP is used
+    # Add WARP Proxy Outbound if WARP is used
     if [[ "$x1outtag" == *"warp"* ]] || [[ "$x2outtag" == *"warp"* ]]; then
         outbounds=$(echo "$outbounds" | jq ". + [{
-      \"tag\": \"x-warp-out\",
-      \"protocol\": \"wireguard\",
+      \"protocol\": \"socks\",
+      \"tag\": \"warp-out\",
       \"settings\": {
-        \"secretKey\": \"${pvk}\",
-        \"address\": [
-          \"172.16.0.2/32\",
-          \"${wpv6}/128\"
-        ],
-        \"mtu\": 1280,
-        \"peers\": [
+        \"servers\": [
           {
-            \"publicKey\": \"bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=\",
-            \"allowedIPs\": [
-              \"0.0.0.0/0\",
-              \"::/0\"
-            ],
-            \"endpoint\": \"${xendip}:2408\",
-            \"keepAlive\": 15
+            \"address\": \"127.0.0.1\",
+            \"port\": 40000
           }
-        ],
-        \"reserved\": ${res}
-        }
-    },
-    {
-      \"tag\":\"warp-out\",
-      \"protocol\":\"freedom\",
-        \"settings\":{
-        \"domainStrategy\":\"${wxryx}\"
-       },
-       \"proxySettings\":{
-       \"tag\":\"x-warp-out\"
-     }
-}]")
+        ]
+      }
+    }]")
     fi
     
     # Update Outbounds

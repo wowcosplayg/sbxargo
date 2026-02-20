@@ -11,11 +11,17 @@
 install_singbox_core() {
     log_info "检查 Sing-box 内核..."
     
+    if [ -f "$HOME/agsbx/sing-box" ]; then
+        local ver=$("$HOME/agsbx/sing-box" version 2>/dev/null | awk '/version/{print $NF}')
+        log_info "检测到本地已存在 Sing-box 内核 ($ver)，跳过下载。"
+        return 0
+    fi
+    
     # Logic from upsingbox
     local archive_pattern=""
     case "$cpu" in
-        amd64) archive_pattern="sing-box-.*-linux-amd64.tar.gz" ;;
-        arm64) archive_pattern="sing-box-.*-linux-arm64.tar.gz" ;;
+        amd64) archive_pattern="sing-box-.*-linux-amd64" ;;
+        arm64) archive_pattern="sing-box-.*-linux-arm64" ;;
         *) log_error "不支持的架构: $cpu"; return 1 ;;
     esac
 
@@ -25,24 +31,28 @@ install_singbox_core() {
     
     local repo="SagerNet/sing-box"
     local latest_url="https://api.github.com/repos/$repo/releases/latest"
-    local version=""
-
-    if command -v curl > /dev/null 2>&1; then
-        version=$(curl -sL "$latest_url" | grep -o '"tag_name": *"[^"]*"' | sed 's/"tag_name": *"\(.*\)"/\1/' | sed 's/^v//')
-    elif command -v wget > /dev/null 2>&1; then
-        version=$(wget -qO- "$latest_url" | grep -o '"tag_name": *"[^"]*"' | sed 's/"tag_name": *"\(.*\)"/\1/' | sed 's/^v//')
+    
+    # 依赖检查：由于我们需要 jq 处理 JSON
+    require_jq
+    
+    # 获取最新的释放信息 JSON
+    local release_json=""
+    if command -v curl >/dev/null 2>&1; then
+        release_json=$(curl -fsSL "$latest_url")
+    elif command -v wget >/dev/null 2>&1; then
+        release_json=$(wget -qO- "$latest_url")
     fi
     
-    # Fallback if API fails
-    if [ -z "$version" ]; then
-        log_warn "获取 Sing-box 版本失败，使用默认版本 1.10.1"
-        version="1.10.1"
+    local download_url=""
+    if [ -n "$release_json" ]; then
+        # 兼容 tar.gz, tar.xz, zip 格式
+        download_url=$(echo "$release_json" | jq -r --arg re "$archive_pattern(\\.tar\\.gz|\\.tar\\.xz|\\.zip)" '.assets[] | select(.name | test($re)) | .browser_download_url' | head -n1)
     fi
-    
 
-    
-    local archive_name="sing-box-${version}-linux-${cpu}.tar.gz"
-    local download_url="https://github.com/$repo/releases/download/v${version}/$archive_name"
+    if [ -z "$download_url" ] || [ "$download_url" == "null" ]; then
+        log_error "获取 Sing-box 下载链接失败"
+        return 1
+    fi
     local out="$HOME/agsbx/sing-box"
     local temp_dir="$HOME/agsbx/temp_sb"
     
@@ -55,10 +65,25 @@ install_singbox_core() {
     fi
     
     if [ -f "$temp_dir/sb.tar.gz" ]; then
-        tar -xzf "$temp_dir/sb.tar.gz" -C "$temp_dir"
-        mv "$temp_dir"/sing-box-*/sing-box "$out"
-        chmod +x "$out"
-        rm -rf "$temp_dir"
+        # 兼容不同格式解压
+        if echo "$download_url" | grep -qE '\.tar\.gz$|\.tgz$'; then
+            tar -xzf "$temp_dir/sb.tar.gz" -C "$temp_dir"
+        elif echo "$download_url" | grep -qE '\.tar\.xz$'; then
+            tar -xJf "$temp_dir/sb.tar.gz" -C "$temp_dir"
+        elif echo "$download_url" | grep -qE '\.zip$'; then
+            unzip -q "$temp_dir/sb.tar.gz" -d "$temp_dir"
+        fi
+        
+        local bin_path=$(find "$temp_dir" -type f -name 'sing-box' | head -n1)
+        if [ -n "$bin_path" ]; then
+            mv "$bin_path" "$out"
+            chmod +x "$out"
+            rm -rf "$temp_dir"
+        else
+            log_error "解压失败，未找到 sing-box 文件。"
+            rm -rf "$temp_dir"
+            return 1
+        fi
         local ver=$("$out" version 2>/dev/null | awk '/version/{print $NF}')
         log_info "已安装 Sing-box 内核: $ver"
     else
@@ -137,6 +162,26 @@ generate_singbox_keys() {
     export public_key_s="${singbox_key_public}"
     export short_id_s="${singbox_key_shortid}"
     export sskey="${sskey}"
+
+    # Hysteria2 Obfs Password
+    if [ -n "$hyp" ]; then
+        if [ ! -e "$HOME/agsbx/hy2_obfs_pwd" ]; then
+            if command -v openssl >/dev/null 2>&1; then
+                hy2_obfs_pwd=$(openssl rand -base64 16 | tr -d "\n")
+            else
+                hy2_obfs_pwd=$(date +%s%N | sha256sum | head -c 16)
+            fi
+            update_config_var "hy2_obfs_pwd" "$hy2_obfs_pwd"
+            
+            # Persist key
+            echo "$hy2_obfs_pwd" > "$HOME/agsbx/hy2_obfs_pwd"
+            chmod 600 "$HOME/agsbx/hy2_obfs_pwd"
+        elif [ -s "$HOME/agsbx/hy2_obfs_pwd" ]; then
+             hy2_obfs_pwd=$(cat "$HOME/agsbx/hy2_obfs_pwd")
+             update_config_var "hy2_obfs_pwd" "$hy2_obfs_pwd"
+        fi
+    fi
+    export hy2_obfs_pwd="${hy2_obfs_pwd}"
     
     # Calculate SHA256 Fingerprint for Pinning (Fixes allowInsecure warning)
     if [ -f "$HOME/agsbx/cert.pem" ] && command -v openssl >/dev/null 2>&1; then
@@ -158,11 +203,12 @@ init_singbox_config() {
       },
       dns: {
         servers: [
-            { "tag": "google", "address": "tls://8.8.8.8", "detour": "direct", "strategy": "prefer_ipv4" }
+            { "type": "local","tag": "local" }
         ],
-        final: "google",
+        final: "",
         strategy: "prefer_ipv4"
       },
+      "ntp": {"enabled": false, "server": "time.windows.com", "server_port": 123, "interval": "30m"},
       inbounds: [],
       outbounds: [],
       route: {}
@@ -179,6 +225,7 @@ add_hysteria2_singbox() {
         update_config_var "port_hy2" "$port_hy2"
     fi
     log_info "添加 Hysteria2: $port_hy2"
+    open_port "$port_hy2" "udp"
     
     local json_block
     json_block=$(cat <<EOF
@@ -193,6 +240,10 @@ add_hysteria2_singbox() {
             }
         ],
         "ignore_client_bandwidth": false,
+        "obfs": {
+            "type": "salamander",
+            "password": "${hy2_obfs_pwd}"
+        },
         "tls": {
             "enabled": true,
             "alpn": [
@@ -221,6 +272,7 @@ add_tuic_singbox() {
         update_config_var "port_tu" "$port_tu"
     fi
     log_info "添加 Tuic: $port_tu"
+    open_port "$port_tu" "udp"
     
     local json_block
     json_block=$(cat <<EOF
@@ -260,6 +312,7 @@ add_anytls_singbox() {
         update_config_var "port_an" "$port_an"
     fi
     log_info "添加 Anytls: $port_an"
+    open_port "$port_an" "tcp"
     
     local json_block
     json_block=$(cat <<EOF
@@ -274,7 +327,7 @@ add_anytls_singbox() {
                   "password":"${uuid}"
                 }
             ],
-
+            "padding_scheme": [],
             "tls":{
                 "enabled": true,
                 "certificate_path": "$HOME/agsbx/cert.pem",
@@ -296,6 +349,7 @@ add_anyreality_singbox() {
         update_config_var "port_ar" "$port_ar"
     fi
     log_info "添加 Any-Reality: $port_ar"
+    open_port "$port_ar" "tcp"
     
     local json_block
     json_block=$(cat <<EOF
@@ -338,6 +392,7 @@ add_shadowsocks_singbox() {
         update_config_var "port_ss" "$port_ss"
     fi
     log_info "添加 Shadowsocks: $port_ss"
+    open_port "$port_ss" "tcp/udp"
     
     local json_block
     json_block=$(cat <<EOF
@@ -350,7 +405,7 @@ add_shadowsocks_singbox() {
             "password": "$sskey",
             "multiplex": {
                 "enabled": true,
-                "padding": true
+                "padding": false
             }
     }
 EOF
@@ -368,12 +423,31 @@ add_vmess_singbox() {
     fi
     
     if [ -z "$port_vm_ws" ] && [ ! -e "$HOME/agsbx/port_vm_ws" ]; then
-        port_vm_ws=$(shuf -i 10000-65535 -n 1)
+        if [ -n "$cdnym" ] && [ "$argo" != "vmpt" ]; then
+            # CDN requires specific HTTPS ports
+            port_vm_ws=$(shuf -e 2053 2083 2087 2096 8443 | head -n 1)
+        else
+            port_vm_ws=$(shuf -i 10000-65535 -n 1)
+        fi
         update_config_var "port_vm_ws" "$port_vm_ws"
     elif [ -n "$port_vm_ws" ]; then
         update_config_var "port_vm_ws" "$port_vm_ws"
     fi
     log_info "添加 Vmess (Sing-box): $port_vm_ws"
+    open_port "$port_vm_ws" "tcp"
+    
+    local tls_block=""
+    if [ "$argo" != "vmpt" ]; then
+        tls_block=$(cat <<EOF
+,
+        "tls": {
+            "enabled": true,
+            "certificate_path": "$HOME/agsbx/cert.pem",
+            "key_path": "$HOME/agsbx/private.key"
+        }
+EOF
+)
+    fi
     
     local json_block
     json_block=$(cat <<EOF
@@ -391,7 +465,7 @@ add_vmess_singbox() {
         "transport": {
             "type": "http",
             "path": "${uuid}-vm"
-        }
+        }${tls_block}
     }
 EOF
 )
@@ -413,6 +487,7 @@ add_socks_singbox() {
     fi
      
     log_info "添加 Socks5 (Sing-box): $port_so"
+    open_port "$port_so" "tcp/udp"
     
     local json_block
     json_block=$(cat <<EOF
@@ -440,30 +515,14 @@ configure_singbox_outbound() {
     # Defaults
     outbounds+="{\"type\": \"direct\", \"tag\": \"direct\"}"
 
-    # Add Wireguard if WARP is used
+    # Add WARP Proxy Outbound if WARP is used
     if [[ "$s1outtag" == *"warp"* ]] || [[ "$s2outtag" == *"warp"* ]]; then
         outbounds+=$(cat <<EOF
     ,{
-      "type": "wireguard",
+      "type": "socks",
       "tag": "warp-out",
-      "mtu": 1280,
-      "address": [
-        "172.16.0.2/32",
-        "${wpv6}/128"
-      ],
-      "private_key": "${pvk}",
-      "peers": [
-        {
-          "server": "${sendip}",
-          "server_port": 2408,
-          "public_key": "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
-          "allowed_ips": [
-            "0.0.0.0/0",
-            "::/0"
-          ],
-          "reserved": $res
-        }
-      ]
+      "server": "127.0.0.1",
+      "server_port": 40000
     }
 EOF
 )

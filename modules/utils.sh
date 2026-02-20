@@ -33,6 +33,63 @@ require_jq() {
 
 
 # ============================================================================
+# System Optimization & Firewall Tools
+# ============================================================================
+
+enable_bbr() {
+    if sysctl net.ipv4.tcp_congestion_control 2>/dev/null | grep -q bbr; then
+        log_info "BBR 已启用"
+    else
+        log_info "正在尝试开启 BBR..."
+        if [ ! -f /etc/sysctl.d/99-bbr.conf ]; then
+            echo "net.core.default_qdisc=fq" > /etc/sysctl.d/99-bbr.conf
+            echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.d/99-bbr.conf
+        fi
+        sysctl --system >/dev/null 2>&1 || true
+        
+        if sysctl net.ipv4.tcp_congestion_control 2>/dev/null | grep -q bbr; then
+             log_info "✓ BBR 开启成功"
+        else
+             log_warn "✗ BBR 开启失败（可能内核不支持，请自行升级）"
+        fi
+    fi
+}
+
+open_port() {
+    local port="$1"
+    local proto="${2:-tcp}"
+    # Expand tcp/udp into array
+    local protos=()
+    if [ "$proto" = "tcp/udp" ]; then
+        protos=("tcp" "udp")
+    else
+        protos=("$proto")
+    fi
+
+    if command -v ufw >/dev/null 2>&1 && ufw status | grep -q -E "active|活跃"; then
+        for pr in "${protos[@]}"; do
+            ufw allow "$port/$pr" >/dev/null 2>&1 || true
+        done
+        ufw reload >/dev/null 2>&1 || true
+    elif command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
+        for pr in "${protos[@]}"; do
+            firewall-cmd --permanent --add-port="$port/$pr" >/dev/null 2>&1 || true
+        done
+        firewall-cmd --reload >/dev/null 2>&1 || true
+    else
+        for pr in "${protos[@]}"; do
+            # IPv4
+            iptables -C INPUT -p "$pr" --dport "$port" -j ACCEPT 2>/dev/null || iptables -I INPUT -p "$pr" --dport "$port" -j ACCEPT
+            # IPv6
+            if command -v ip6tables >/dev/null 2>&1; then
+                ip6tables -C INPUT -p "$pr" --dport "$port" -j ACCEPT 2>/dev/null || ip6tables -I INPUT -p "$pr" --dport "$port" -j ACCEPT
+            fi
+        done
+        command -v netfilter-persistent >/dev/null 2>&1 && netfilter-persistent save >/dev/null 2>&1 || true
+    fi
+}
+
+# ============================================================================
 # System Information & IP
 # ============================================================================
 
@@ -596,16 +653,24 @@ generate_all_links() {
         fi
         
         if echo "$xr_content" | grep -q 'vless-xhttp"'; then
-             echo "vless://$uuid@$server_ip:$port_vx?encryption=$enkey&type=xhttp&path=$uuid-vx&mode=auto#${sxname}vl-xhttp-enc-$hostname" >> "$HOME/agsbx/jh.txt"
+             local vt="&security=tls&sni=$server_ip&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1"
+             local vtc="&security=tls&sni=$xvvmcdnym&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1"
+             
+             echo "vless://$uuid@$server_ip:$port_vx?encryption=$enkey&type=xhttp&path=$uuid-vx&mode=auto${vt}#${sxname}vl-xhttp-enc-$hostname" >> "$HOME/agsbx/jh.txt"
              if [ -n "$xvvmcdnym" ]; then
-                 echo "vless://$uuid@$xvvmcdnym:$port_vx?encryption=$enkey&type=xhttp&host=$xvvmcdnym&path=$uuid-vx&mode=auto#${sxname}vl-xhttp-enc-cdn-$hostname" >> "$HOME/agsbx/jh.txt"
+                 echo "vless://$uuid@$xvvmcdnym:$port_vx?encryption=$enkey&type=xhttp&host=$xvvmcdnym&path=$uuid-vx&mode=auto${vtc}#${sxname}vl-xhttp-enc-cdn-$hostname" >> "$HOME/agsbx/jh.txt"
              fi
         fi
         
         if echo "$xr_content" | grep -q 'vless-xhttp-cdn'; then
-             echo "vless://$uuid@$server_ip:$port_vw?encryption=$enkey&type=xhttp&path=$uuid-vw&mode=packet-up#${sxname}vl-xhttp-packet-$hostname" >> "$HOME/agsbx/jh.txt"
-             if [ -n "$xvvmcdnym" ]; then
-                 echo "vless://$uuid@$xvvmcdnym:$port_vw?encryption=$enkey&type=xhttp&host=$xvvmcdnym&path=$uuid-vw&mode=packet-up#${sxname}vl-xhttp-packet-cdn-$hostname" >> "$HOME/agsbx/jh.txt"
+             if [ "$argo" != "vwpt" ]; then
+                 local vt="&security=tls&sni=$server_ip&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1"
+                 local vtc="&security=tls&sni=$xvvmcdnym&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1"
+                 
+                 echo "vless://$uuid@$server_ip:$port_vw?encryption=$enkey&type=xhttp&path=$uuid-vw&mode=packet-up${vt}#${sxname}vl-xhttp-packet-$hostname" >> "$HOME/agsbx/jh.txt"
+                 if [ -n "$xvvmcdnym" ]; then
+                     echo "vless://$uuid@$xvvmcdnym:$port_vw?encryption=$enkey&type=xhttp&host=$xvvmcdnym&path=$uuid-vw&mode=packet-up${vtc}#${sxname}vl-xhttp-packet-cdn-$hostname" >> "$HOME/agsbx/jh.txt"
+                 fi
              fi
         fi
         
@@ -659,10 +724,15 @@ generate_all_links() {
     
     # Check VMess (Can be in either)
     if grep -q 'vmess-xhttp' "$HOME/agsbx/xr.json" 2>/dev/null || grep -q 'vmess-sb' "$HOME/agsbx/sb.json" 2>/dev/null; then
-        echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-$hostname\", \"add\": \"$server_ip\", \"port\": \"$port_vm_ws\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"www.bing.com\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
-        
-        if [ -n "$xvvmcdnym" ]; then
-             echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-cdn-$hostname\", \"add\": \"$xvvmcdnym\", \"port\": \"$port_vm_ws\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
+        if [ "$argo" != "vmpt" ]; then
+            local vmt="\"tls\": \"tls\", \"sni\": \"$server_ip\", \"alpn\": \"h3,h2,http/1.1\", \"fp\": \"chrome\""
+            local vmtc="\"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"alpn\": \"h3,h2,http/1.1\", \"fp\": \"chrome\""
+            
+            echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-$hostname\", \"add\": \"$server_ip\", \"port\": \"$port_vm_ws\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"www.bing.com\", \"path\": \"/$uuid-vm\", ${vmt}}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
+            
+            if [ -n "$xvvmcdnym" ]; then
+                 echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-cdn-$hostname\", \"add\": \"$xvvmcdnym\", \"port\": \"$port_vm_ws\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$uuid-vm\", ${vmtc}}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
+            fi
         fi
     fi
     

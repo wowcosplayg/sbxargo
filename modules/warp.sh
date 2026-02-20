@@ -22,7 +22,7 @@ register_warp_local() {
         return 1
     fi
     
-    log_info "检测到 warp-cli，尝试本地注册..."
+    log_info "检测到 warp-cli，尝试本地注册并开启 SOCKS5 代理..."
     
     # Check if already registered
     if warp-cli --accept-tos status | grep -q "Registration missing"; then
@@ -30,67 +30,51 @@ register_warp_local() {
          warp-cli --accept-tos register >/dev/null 2>&1
     fi
     
-    # Get Keys
-    # Output format varies by version, trying generic parse
-    local account_out
-    account_out=$(warp-cli --accept-tos account)
+    # Set to proxy mode
+    warp-cli --accept-tos mode proxy >/dev/null 2>&1
+    # Connect
+    warp-cli --accept-tos connect >/dev/null 2>&1
     
-    # Try to extract keys? warp-cli account usually doesn't show private key easily in newer versions without specific commands or config file reading.
-    # Actually, getting private key from warp-cli is hard in recent versions (it's hidden).
-    # But for Xray/Singbox wireguard usage, we NEED the private key.
-    # If standard warp-cli doesn't output it, we might need to look at /var/lib/cloudflare-warp/reg.json or similar (requires root).
+    # wait for socks5 port 40000 to listen
+    local max_wait=10
+    local wait_count=0
+    local proxy_ready=false
     
-    if [ -f "/var/lib/cloudflare-warp/reg.json" ]; then
-        if command -v jq >/dev/null 2>&1; then
-            pvk=$(jq -r .private_key "/var/lib/cloudflare-warp/reg.json")
-            wpv6=$(jq -r .config.interface.v6.ip "/var/lib/cloudflare-warp/reg.json")
-            # reserved might need decoding from distinct field or it's part of client id?
-            # Simplified: just try to get pvk and ipv6
+    while [ $wait_count -lt $max_wait ]; do
+        if ss -lntp 2>/dev/null | grep -q ":40000\b" || netstat -lntp 2>/dev/null | grep -q ":40000\b"; then
+            proxy_ready=true
+            break
         fi
-    fi
-    
-    # If we can't get pvk, we can't use this method for Wireguard config.
-    if [ -z "$pvk" ]; then
-        log_warn "无法从本地 warp-cli 获取私钥 (可能需要 root 或版本不支持)。"
+        sleep 1
+        wait_count=$((wait_count+1))
+    done
+
+    if [ "$proxy_ready" = true ]; then
+        log_info "成功获取本地 WARP SOCKS5 代理 (127.0.0.1:40000)。"
+        export WARP_SOCKS_READY=true
+        return 0
+    else
+        log_warn "WARP SOCKS5 代理启动失败超时。"
         return 1
     fi
-    
-    log_info "成功获取本地 WARP 密钥。"
-    return 0
 }
 
 check_warp_availability(){
     log_info "检查 WARP 配置..."
     
-    # Use user provided variables or defaults
-    # vars: wpv6 (IPv6), pvk (PrivateKey), res (Reserved)
+    export WARP_SOCKS_READY=false
     
-    wpv6="${WARP_IPV6:-$wpv6}"
-    pvk="${WARP_PRIVATE_KEY:-$pvk}"
-    res="${WARP_RESERVED:-$res}"
+    # 尝试设置 warp 代理
+    register_warp_local
     
-    # Try local registration if missing
-    if [ -z "$pvk" ]; then
-        register_warp_local
-    fi
-    
-    if [ -n "$pvk" ]; then
-         log_info "WARP 配置有效"
-         # Ensure IPv6 is set (if local fetch failed to get it but got pvk?)
-         if [ -z "$wpv6" ]; then
-             # fallback or warning?
-             log_warn "WARP Private Key 存在但 IPv6 缺失，可能导致连接失败。"
-         fi
-         [ -z "$res" ] && res='[215, 69, 233]' 
+    if [ "$WARP_SOCKS_READY" = true ]; then
+        log_info "WARP 配置有效 (SOCKS5 代理)"
     else
-        log_warn "未检测到 WARP 密钥配置 (WARP_IPV6, WARP_PRIVATE_KEY)。WARP 功能可能无法使用。"
-        log_warn "请在 config.env 中配置或通过脚本输入。"
+        log_warn "未检测到 WARP 代理配置。WARP 功能可能无法使用。"
         if [ "$warp" != "no" ] && [ -z "$warp" ]; then
              warp="no"
         fi
     fi
-    
-    export wpv6 pvk res
 }
 
 configure_warp_routing(){
