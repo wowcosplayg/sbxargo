@@ -649,55 +649,73 @@ generate_all_links() {
         local xr_content=$(cat "$HOME/agsbx/xr.json")
         
         # Helper to dynamically extract flow if it exists for a tag
-        get_flow_for_tag() {
+        get_val_for_tag() {
             local tag="$1"
-            echo "$xr_content" | jq -r ".inbounds[] | select(.tag == \"$tag\") | .settings.clients[0].flow // empty"
+            local path="$2"
+            echo "$xr_content" | jq -r ".inbounds[] | select(.tag == \"$tag\") | ${path} // empty"
         }
         
         if echo "$xr_content" | grep -q 'xhttp-reality'; then
-            local flow_val=$(get_flow_for_tag "xhttp-reality")
+            local p_port=$(get_val_for_tag "xhttp-reality" ".port")
+            local flow_val=$(get_val_for_tag "xhttp-reality" ".settings.clients[0].flow")
+            local p_path=$(get_val_for_tag "xhttp-reality" ".streamSettings.xhttpSettings.path")
+            local p_sni=$(get_val_for_tag "xhttp-reality" ".streamSettings.realitySettings.serverNames[0]")
             local flow_param=""
             [ -n "$flow_val" ] && flow_param="&flow=$flow_val"
             
-            echo "vless://$uuid@$server_ip:$port_xh?encryption=none${flow_param}&security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_x&sid=$short_id_x&type=xhttp&path=$uuid-xh&mode=auto#${sxname}vl-xhttp-reality-enc-$hostname" >> "$HOME/agsbx/jh.txt"
+            echo "vless://$uuid@$server_ip:$p_port?encryption=none${flow_param}&security=reality&sni=$p_sni&fp=chrome&pbk=$public_key_x&sid=$short_id_x&type=xhttp&path=${p_path}&mode=auto#${sxname}vl-xhttp-reality-enc-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
         
         if echo "$xr_content" | grep -q 'vless-xhttp"'; then
-             local flow_val=$(get_flow_for_tag "vless-xhttp")
+             local p_port=$(get_val_for_tag "vless-xhttp" ".port")
+             local p_path=$(get_val_for_tag "vless-xhttp" ".streamSettings.xhttpSettings.path")
+             local p_sec=$(get_val_for_tag "vless-xhttp" ".streamSettings.security")
+             local flow_val=$(get_val_for_tag "vless-xhttp" ".settings.clients[0].flow")
              local flow_param=""
              [ -n "$flow_val" ] && flow_param="&flow=$flow_val"
              
-             local vt="&security=tls&sni=$server_ip&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1${flow_param}"
-             local vtc="&security=tls&sni=$xvvmcdnym&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1${flow_param}"
+             local sec_str=""
+             if [ "$p_sec" == "tls" ]; then
+                 sec_str="&security=tls&sni=$server_ip&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1"
+                 local sec_str_cdn="&security=tls&sni=$xvvmcdnym&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1"
+             fi
              
-             echo "vless://$uuid@$server_ip:$port_vx?encryption=$enkey&type=xhttp&path=$uuid-vx&mode=auto${vt}#${sxname}vl-xhttp-enc-$hostname" >> "$HOME/agsbx/jh.txt"
-             if [ -n "$xvvmcdnym" ]; then
-                 echo "vless://$uuid@$xvvmcdnym:$port_vx?encryption=$enkey&type=xhttp&host=$xvvmcdnym&path=$uuid-vx&mode=auto${vtc}#${sxname}vl-xhttp-enc-cdn-$hostname" >> "$HOME/agsbx/jh.txt"
+             echo "vless://$uuid@$server_ip:$p_port?encryption=$enkey&type=xhttp&path=${p_path}&mode=auto${sec_str}${flow_param}#${sxname}vl-xhttp-enc-$hostname" >> "$HOME/agsbx/jh.txt"
+             if [ -n "$xvvmcdnym" ] && [ "$p_sec" == "tls" ]; then
+                 echo "vless://$uuid@$xvvmcdnym:$p_port?encryption=$enkey&type=xhttp&host=$xvvmcdnym&path=${p_path}&mode=auto${sec_str_cdn}${flow_param}#${sxname}vl-xhttp-enc-cdn-$hostname" >> "$HOME/agsbx/jh.txt"
              fi
         fi
         
         if echo "$xr_content" | grep -q 'vless-xhttp-cdn'; then
              if [ "$argo" != "vwpt" ]; then
-                 local flow_val=$(get_flow_for_tag "vless-xhttp-cdn")
+                 local p_port=$(get_val_for_tag "vless-xhttp-cdn" ".port")
+                 local p_path=$(get_val_for_tag "vless-xhttp-cdn" ".streamSettings.xhttpSettings.path")
+                 local flow_val=$(get_val_for_tag "vless-xhttp-cdn" ".settings.clients[0].flow")
+                 local p_sec=$(get_val_for_tag "vless-xhttp-cdn" ".streamSettings.security")
                  local flow_param=""
                  [ -n "$flow_val" ] && flow_param="&flow=$flow_val"
                  
-                 local vt="&security=tls&sni=$server_ip&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1${flow_param}"
-                 local vtc="&security=tls&sni=$xvvmcdnym&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1${flow_param}"
+                 local sec_str=""
+                 if [ "$p_sec" == "tls" ]; then
+                     sec_str="&security=tls&sni=$server_ip&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1"
+                     local sec_str_cdn="&security=tls&sni=$xvvmcdnym&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1"
+                 fi
                  
-                 echo "vless://$uuid@$server_ip:$port_vw?encryption=$enkey&type=xhttp&path=$uuid-vw&mode=packet-up${vt}#${sxname}vl-xhttp-packet-$hostname" >> "$HOME/agsbx/jh.txt"
-                 if [ -n "$xvvmcdnym" ]; then
-                     echo "vless://$uuid@$xvvmcdnym:$port_vw?encryption=$enkey&type=xhttp&host=$xvvmcdnym&path=$uuid-vw&mode=packet-up${vtc}#${sxname}vl-xhttp-packet-cdn-$hostname" >> "$HOME/agsbx/jh.txt"
+                 echo "vless://$uuid@$server_ip:$p_port?encryption=$enkey&type=xhttp&path=${p_path}&mode=packet-up${sec_str}${flow_param}#${sxname}vl-xhttp-packet-$hostname" >> "$HOME/agsbx/jh.txt"
+                 if [ -n "$xvvmcdnym" ] && [ "$p_sec" == "tls" ]; then
+                     echo "vless://$uuid@$xvvmcdnym:$p_port?encryption=$enkey&type=xhttp&host=$xvvmcdnym&path=${p_path}&mode=packet-up${sec_str_cdn}${flow_param}#${sxname}vl-xhttp-packet-cdn-$hostname" >> "$HOME/agsbx/jh.txt"
                  fi
              fi
         fi
         
         if echo "$xr_content" | grep -q 'reality-vision'; then
-            local flow_val=$(get_flow_for_tag "reality-vision")
+            local p_port=$(get_val_for_tag "reality-vision" ".port")
+            local p_sni=$(get_val_for_tag "reality-vision" ".streamSettings.realitySettings.serverNames[0]")
+            local flow_val=$(get_val_for_tag "reality-vision" ".settings.clients[0].flow")
             local flow_param=""
             [ -n "$flow_val" ] && flow_param="&flow=$flow_val"
             
-            echo "vless://$uuid@$server_ip:$port_vl_re?encryption=none${flow_param}&security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_x&sid=$short_id_x&type=tcp&headerType=none#${sxname}vl-reality-vision-$hostname" >> "$HOME/agsbx/jh.txt"
+            echo "vless://$uuid@$server_ip:$p_port?encryption=none${flow_param}&security=reality&sni=$p_sni&fp=chrome&pbk=$public_key_x&sid=$short_id_x&type=tcp&headerType=none#${sxname}vl-reality-vision-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
     fi
     
@@ -705,55 +723,84 @@ generate_all_links() {
     if [ -f "$HOME/agsbx/sb.json" ]; then
         local sb_content=$(cat "$HOME/agsbx/sb.json")
         
+        # Helper to dynamically extract val if it exists for a tag
+        get_sb_val_for_tag() {
+            local tag="$1"
+            local path="$2"
+            echo "$sb_content" | jq -r ".inbounds[] | select(.tag == \"$tag\") | ${path} // empty"
+        }
+        
         if echo "$sb_content" | grep -q 'ss-2022'; then
-            echo "ss://$(echo -n "2022-blake3-aes-256-gcm:$sskey@$server_ip:$port_ss" | base64 -w0)#${sxname}Shadowsocks-2022-$hostname" >> "$HOME/agsbx/jh.txt"
+            local p_port=$(get_sb_val_for_tag "ss-2022" ".listen_port")
+            echo "ss://$(echo -n "2022-blake3-aes-256-gcm:$sskey@$server_ip:$p_port" | base64 -w0)#${sxname}Shadowsocks-2022-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
         
         if echo "$sb_content" | grep -q 'socks5-sb'; then
-             echo "socks5://$uuid:$uuid@$server_ip:$port_so#${sxname}socks5-$hostname" >> "$HOME/agsbx/jh.txt"
+             local p_port=$(get_sb_val_for_tag "socks5-sb" ".listen_port")
+             echo "socks5://$uuid:$uuid@$server_ip:$p_port#${sxname}socks5-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
         
         if echo "$sb_content" | grep -q 'anytls-sb'; then
-            echo "anytls://$uuid@$server_ip:$port_an?insecure=1&allowInsecure=1#${sxname}anytls-$hostname" >> "$HOME/agsbx/jh.txt"
+            local p_port=$(get_sb_val_for_tag "anytls-sb" ".listen_port")
+            echo "anytls://$uuid@$server_ip:$p_port?insecure=1&allowInsecure=1#${sxname}anytls-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
         
         if echo "$sb_content" | grep -q 'vless-reality-sb'; then
-             echo "vless://$uuid@$server_ip:$port_ar?security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_s&sid=$short_id_s&type=tcp&flow=xtls-rprx-vision&headerType=none#${sxname}vless-reality-$hostname" >> "$HOME/agsbx/jh.txt"
+             local p_port=$(get_sb_val_for_tag "vless-reality-sb" ".listen_port")
+             local p_sni=$(get_sb_val_for_tag "vless-reality-sb" ".tls.server_name")
+             local flow_val=$(get_sb_val_for_tag "vless-reality-sb" ".users[0].flow")
+             local flow_param=""
+             [ -n "$flow_val" ] && flow_param="&flow=$flow_val"
+             
+             echo "vless://$uuid@$server_ip:$p_port?security=reality&sni=$p_sni&fp=chrome&pbk=$public_key_s&sid=$short_id_s&type=tcp${flow_param}&headerType=none#${sxname}vless-reality-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
         
         if echo "$sb_content" | grep -q 'hy2-sb'; then
+             local p_port=$(get_sb_val_for_tag "hy2-sb" ".listen_port")
              random_cn="${cert_cn:-www.bing.com}"
              
              if [ -n "$cert_sha256" ]; then
                  # Use Pinning (Recommended)
-                 echo "hysteria2://$uuid@$server_ip:$port_hy2?security=tls&alpn=h3&pinSHA256=$cert_sha256&sni=$random_cn#${sxname}hy2-$hostname" >> "$HOME/agsbx/jh.txt"
+                 echo "hysteria2://$uuid@$server_ip:$p_port?security=tls&alpn=h3&pinSHA256=$cert_sha256&sni=$random_cn#${sxname}hy2-$hostname" >> "$HOME/agsbx/jh.txt"
              else
                  # Fallback to insecure if no cert hash
-                 echo "hysteria2://$uuid@$server_ip:$port_hy2?security=tls&alpn=h3&insecure=1&sni=$random_cn#${sxname}hy2-$hostname" >> "$HOME/agsbx/jh.txt"
+                 echo "hysteria2://$uuid@$server_ip:$p_port?security=tls&alpn=h3&insecure=1&sni=$random_cn#${sxname}hy2-$hostname" >> "$HOME/agsbx/jh.txt"
              fi
         fi
         
         if echo "$sb_content" | grep -q 'tuic5-sb'; then
+             local p_port=$(get_sb_val_for_tag "tuic5-sb" ".listen_port")
              random_cn="${cert_cn:-www.bing.com}"
              
              if [ -n "$cert_sha256" ]; then
-                echo "tuic://$uuid:$uuid@$server_ip:$port_tu?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=$random_cn&pinSHA256=$cert_sha256#${sxname}tuic-$hostname" >> "$HOME/agsbx/jh.txt"
+                echo "tuic://$uuid:$uuid@$server_ip:$p_port?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=$random_cn&pinSHA256=$cert_sha256#${sxname}tuic-$hostname" >> "$HOME/agsbx/jh.txt"
              else
-                echo "tuic://$uuid:$uuid@$server_ip:$port_tu?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=$random_cn&allow_insecure=1&allowInsecure=1#${sxname}tuic-$hostname" >> "$HOME/agsbx/jh.txt"
+                echo "tuic://$uuid:$uuid@$server_ip:$p_port?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=$random_cn&allow_insecure=1&allowInsecure=1#${sxname}tuic-$hostname" >> "$HOME/agsbx/jh.txt"
              fi
         fi
     fi
     
     # Check VMess (Can be in either)
-    if grep -q 'vmess-xhttp' "$HOME/agsbx/xr.json" 2>/dev/null || grep -q 'vmess-sb' "$HOME/agsbx/sb.json" 2>/dev/null; then
+    local v_port=""
+    local v_path=""
+    if grep -q 'vmess-xhttp' "$HOME/agsbx/xr.json" 2>/dev/null; then
+        v_port=$(echo "$xr_content" | jq -r '.inbounds[] | select(.tag == "vmess-xhttp") | .port // empty')
+        v_path=$(echo "$xr_content" | jq -r '.inbounds[] | select(.tag == "vmess-xhttp") | .streamSettings.wsSettings.path // empty')
+    elif grep -q 'vmess-sb' "$HOME/agsbx/sb.json" 2>/dev/null; then
+        local sb_content=$(cat "$HOME/agsbx/sb.json" 2>/dev/null)
+        v_port=$(echo "$sb_content" | jq -r '.inbounds[] | select(.tag == "vmess-sb") | .listen_port // empty')
+        v_path=$(echo "$sb_content" | jq -r '.inbounds[] | select(.tag == "vmess-sb") | .transport.path // empty')
+    fi
+    
+    if [ -n "$v_port" ]; then
         if [ "$argo" != "vmpt" ]; then
             local vmt="\"tls\": \"tls\", \"sni\": \"$server_ip\", \"alpn\": \"h3,h2,http/1.1\", \"fp\": \"chrome\""
             local vmtc="\"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"alpn\": \"h3,h2,http/1.1\", \"fp\": \"chrome\""
             
-            echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-$hostname\", \"add\": \"$server_ip\", \"port\": \"$port_vm_ws\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"www.bing.com\", \"path\": \"/$uuid-vm\", ${vmt}}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
+            echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-$hostname\", \"add\": \"$server_ip\", \"port\": \"$v_port\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"www.bing.com\", \"path\": \"${v_path}\", ${vmt}}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
             
             if [ -n "$xvvmcdnym" ]; then
-                 echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-cdn-$hostname\", \"add\": \"$xvvmcdnym\", \"port\": \"$port_vm_ws\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$uuid-vm\", ${vmtc}}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
+                 echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-cdn-$hostname\", \"add\": \"$xvvmcdnym\", \"port\": \"$v_port\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"${v_path}\", ${vmtc}}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
             fi
         fi
     fi
@@ -765,13 +812,17 @@ generate_all_links() {
     if [ -n "$argodomain" ]; then
         vlvm="${vlvm}"
         if [ "$vlvm" = "Vmess" ]; then
-             echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-tls-argo-$hostname-443\", \"add\": \"$argodomain\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
+             local vp_path=$(echo "$xr_content" | jq -r '.inbounds[] | select(.tag == "vmess-xhttp") | .streamSettings.wsSettings.path // empty')
+             [ -z "$vp_path" ] && vp_path=$(echo "$sb_content" | jq -r '.inbounds[] | select(.tag == "vmess-sb") | .transport.path // empty')
+             
+             echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-tls-argo-$hostname-443\", \"add\": \"$argodomain\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"${vp_path}\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
         elif [ "$vlvm" = "Vless" ]; then
-             local flow_val=$(get_flow_for_tag "vless-xhttp-cdn")
+             local flow_val=$(get_val_for_tag "vless-xhttp-cdn" ".settings.clients[0].flow")
+             local p_path=$(get_val_for_tag "vless-xhttp-cdn" ".streamSettings.xhttpSettings.path")
              local flow_param=""
              [ -n "$flow_val" ] && flow_param="&flow=$flow_val"
              
-             echo "vless://$uuid@$argodomain:443?encryption=$enkey&type=xhttp&host=$argodomain&path=$uuid-vw&mode=packet-up&security=tls&sni=$argodomain&fp=chrome${flow_param}&insecure=0&allowInsecure=0#${sxname}vless-xhttp-tls-argo-enc-$hostname" >> "$HOME/agsbx/jh.txt"
+             echo "vless://$uuid@$argodomain:443?encryption=$enkey&type=xhttp&host=$argodomain&path=${p_path}&mode=packet-up&security=tls&sni=$argodomain&fp=chrome${flow_param}&insecure=0&allowInsecure=0#${sxname}vless-xhttp-tls-argo-enc-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
     fi
     
