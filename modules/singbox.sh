@@ -203,12 +203,13 @@ init_singbox_config() {
       },
       dns: {
         servers: [
-            { "type": "local","tag": "local" }
+            { "type": "local", "tag": "local" },
+            { "address": "1.1.1.1", "tag": "remote" }
         ],
         final: "local",
         strategy: "prefer_ipv4"
       },
-      "ntp": {"enabled": false, "server": "time.windows.com", "server_port": 123, "interval": "30m"},
+      "ntp": {"enabled": true, "server": "time.windows.com", "server_port": 123, "interval": "30m"},
       inbounds: [],
       outbounds: [],
       route: {}
@@ -537,6 +538,14 @@ EOF
     route=$(cat <<EOF
     {
         "rules": [
+            {
+                "protocol": "dns",
+                "outbound": "direct"
+            },
+            {
+                "port": 53,
+                "outbound": "direct"
+            },
             {
                 "ip_is_private": true,
                 "outbound": "direct"
