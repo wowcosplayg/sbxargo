@@ -541,19 +541,8 @@ EOF
     {
         "rules": [
             {
-                "protocol": "dns",
-                "outbound": "direct"
-            },
-            {
-                "protocol": "ntp",
-                "outbound": "direct"
-            },
-            {
-                "port": 53,
-                "outbound": "direct"
-            },
-            {
-                "port": 123,
+                "protocol": ["dns", "ntp"],
+                "port": [53, 123],
                 "outbound": "direct"
             },
             {
