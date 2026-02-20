@@ -205,7 +205,7 @@ init_singbox_config() {
         servers: [
             { "type": "local","tag": "local" }
         ],
-        final: "",
+        final: "local",
         strategy: "prefer_ipv4"
       },
       "ntp": {"enabled": false, "server": "time.windows.com", "server_port": 123, "interval": "30m"},
