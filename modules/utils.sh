@@ -648,13 +648,27 @@ generate_all_links() {
     if [ -f "$HOME/agsbx/xr.json" ]; then
         local xr_content=$(cat "$HOME/agsbx/xr.json")
         
+        # Helper to dynamically extract flow if it exists for a tag
+        get_flow_for_tag() {
+            local tag="$1"
+            echo "$xr_content" | jq -r ".inbounds[] | select(.tag == \"$tag\") | .settings.clients[0].flow // empty"
+        }
+        
         if echo "$xr_content" | grep -q 'xhttp-reality'; then
-            echo "vless://$uuid@$server_ip:$port_xh?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_x&sid=$short_id_x&type=xhttp&path=$uuid-xh&mode=auto#${sxname}vl-xhttp-reality-enc-$hostname" >> "$HOME/agsbx/jh.txt"
+            local flow_val=$(get_flow_for_tag "xhttp-reality")
+            local flow_param=""
+            [ -n "$flow_val" ] && flow_param="&flow=$flow_val"
+            
+            echo "vless://$uuid@$server_ip:$port_xh?encryption=none${flow_param}&security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_x&sid=$short_id_x&type=xhttp&path=$uuid-xh&mode=auto#${sxname}vl-xhttp-reality-enc-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
         
         if echo "$xr_content" | grep -q 'vless-xhttp"'; then
-             local vt="&security=tls&sni=$server_ip&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1&flow=xtls-rprx-vision"
-             local vtc="&security=tls&sni=$xvvmcdnym&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1&flow=xtls-rprx-vision"
+             local flow_val=$(get_flow_for_tag "vless-xhttp")
+             local flow_param=""
+             [ -n "$flow_val" ] && flow_param="&flow=$flow_val"
+             
+             local vt="&security=tls&sni=$server_ip&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1${flow_param}"
+             local vtc="&security=tls&sni=$xvvmcdnym&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1${flow_param}"
              
              echo "vless://$uuid@$server_ip:$port_vx?encryption=$enkey&type=xhttp&path=$uuid-vx&mode=auto${vt}#${sxname}vl-xhttp-enc-$hostname" >> "$HOME/agsbx/jh.txt"
              if [ -n "$xvvmcdnym" ]; then
@@ -664,8 +678,12 @@ generate_all_links() {
         
         if echo "$xr_content" | grep -q 'vless-xhttp-cdn'; then
              if [ "$argo" != "vwpt" ]; then
-                 local vt="&security=tls&sni=$server_ip&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1&flow=xtls-rprx-vision"
-                 local vtc="&security=tls&sni=$xvvmcdnym&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1&flow=xtls-rprx-vision"
+                 local flow_val=$(get_flow_for_tag "vless-xhttp-cdn")
+                 local flow_param=""
+                 [ -n "$flow_val" ] && flow_param="&flow=$flow_val"
+                 
+                 local vt="&security=tls&sni=$server_ip&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1${flow_param}"
+                 local vtc="&security=tls&sni=$xvvmcdnym&fp=chrome&alpn=h3,h2,http/1.1&allowInsecure=1${flow_param}"
                  
                  echo "vless://$uuid@$server_ip:$port_vw?encryption=$enkey&type=xhttp&path=$uuid-vw&mode=packet-up${vt}#${sxname}vl-xhttp-packet-$hostname" >> "$HOME/agsbx/jh.txt"
                  if [ -n "$xvvmcdnym" ]; then
@@ -675,7 +693,11 @@ generate_all_links() {
         fi
         
         if echo "$xr_content" | grep -q 'reality-vision'; then
-            echo "vless://$uuid@$server_ip:$port_vl_re?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_x&sid=$short_id_x&type=tcp&headerType=none#${sxname}vl-reality-vision-$hostname" >> "$HOME/agsbx/jh.txt"
+            local flow_val=$(get_flow_for_tag "reality-vision")
+            local flow_param=""
+            [ -n "$flow_val" ] && flow_param="&flow=$flow_val"
+            
+            echo "vless://$uuid@$server_ip:$port_vl_re?encryption=none${flow_param}&security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_x&sid=$short_id_x&type=tcp&headerType=none#${sxname}vl-reality-vision-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
     fi
     
@@ -745,7 +767,11 @@ generate_all_links() {
         if [ "$vlvm" = "Vmess" ]; then
              echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-tls-argo-$hostname-443\", \"add\": \"$argodomain\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
         elif [ "$vlvm" = "Vless" ]; then
-             echo "vless://$uuid@$argodomain:443?encryption=$enkey&type=xhttp&host=$argodomain&path=$uuid-vw&mode=packet-up&security=tls&sni=$argodomain&fp=chrome&flow=xtls-rprx-vision&insecure=0&allowInsecure=0#${sxname}vless-xhttp-tls-argo-enc-$hostname" >> "$HOME/agsbx/jh.txt"
+             local flow_val=$(get_flow_for_tag "vless-xhttp-cdn")
+             local flow_param=""
+             [ -n "$flow_val" ] && flow_param="&flow=$flow_val"
+             
+             echo "vless://$uuid@$argodomain:443?encryption=$enkey&type=xhttp&host=$argodomain&path=$uuid-vw&mode=packet-up&security=tls&sni=$argodomain&fp=chrome${flow_param}&insecure=0&allowInsecure=0#${sxname}vless-xhttp-tls-argo-enc-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
     fi
     
