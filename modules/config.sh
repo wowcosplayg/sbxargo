@@ -47,9 +47,8 @@ init_config() {
     export ym_vl_re=${reym:-''}
     export cdnym=${cdnym:-''}
     export argo=${argo:-''}
-    # Derive vmag from argo state for configure_argo_tunnel guard
-    [ "$argo" = "vmpt" ] || [ "$argo" = "vwpt" ] && vmag=yes
-    export vmag=${vmag:-''}
+    export argo_type=${argo_type:-''}
+    export port_argo_ws=${port_argo_ws:-''}
     export ARGO_DOMAIN=${agn:-''}
     export ARGO_AUTH=${agk:-''}
     export ippz=${ippz:-''}
@@ -374,6 +373,9 @@ interactive_config() {
     # Argo Config
     read -p "是否启用 Argo 隧道? (y/n): " choice
     if [[ "$choice" == "y" ]]; then
+        argo="yes"
+        update_config_var "argo" "yes"
+        
         echo "  [1] 临时隧道"
         echo "  [2] 固定隧道"
         read -p "  请选择 (1/2): " argo_sel
@@ -385,51 +387,62 @@ interactive_config() {
              update_config_var "ARGO_AUTH" "$agk"
              update_config_var "ARGO_DOMAIN" "$agn"
         fi
-        echo "  选择承载 Argo 的底层协议:"
-        echo "  [1] VMess (推荐, 兼容性最佳)"
-        echo "  [2] VLESS (新 XHTTP 承载)"
-        read -p "  请选择 (1/2): " argo_proto
-        if [[ "$argo_proto" == "2" ]]; then
-             argo="vwpt"
-             vmag=yes
-             update_config_var "argo" "vwpt"
-             update_config_var "vmag" "yes"
-             update_config_var "vlvm" "Vless"
-             if [ "$vwp" != "yes" ]; then
-                  echo "  * 已自动为您启用 Argo 依赖的 Vless-XHTTP-Packet 协议"
-                  vwp=yes
-                  update_config_var "vwp" "yes"
-             fi
+        
+        echo "  选择承载 Argo 的底层代理协议 (该协议将在此隐藏运行生作为Argo通道):"
+        echo "  [1] VMess-WS (推荐, 兼容性最佳)"
+        echo "  [2] VLESS-WS"
+        read -p "  请选择 (1/2): " argo_proto_sel
+        if [[ "$argo_proto_sel" == "2" ]]; then
+             argo_type="vless"
+             update_config_var "argo_type" "vless"
         else
-             argo="vmpt"
-             vmag=yes
-             update_config_var "argo" "vmpt"
-             update_config_var "vmag" "yes"
-             update_config_var "vlvm" "Vmess"
-             if [ "$vmp" != "yes" ]; then
-                  echo "  * 已自动为您启用 Argo 依赖的 VMess 协议"
-                  vmp=yes
-                  update_config_var "vmp" "yes"
-             fi
+             argo_type="vmess"
+             update_config_var "argo_type" "vmess"
         fi
+        
+        # Assign a dedicated internal port for Argo WS
+        local curr_argo_port=${port_argo_ws:-$(cat "$HOME/agsbx/port_argo_ws" 2>/dev/null)}
+        if [ -z "$curr_argo_port" ]; then
+             curr_argo_port=$(shuf -i 10000-65535 -n 1)
+        fi
+        
+        read -p "  请输入 Argo 隧道将在本地监听的内部端口 (默认: $curr_argo_port，请在使用 Cloudflare 配置 Public Hostname 时指向此回源端口): " input_argo_port
+        port_argo_ws="${input_argo_port:-$curr_argo_port}"
+        update_config_var "port_argo_ws" "$port_argo_ws"
+
+        echo "  * 已为您配置 Argo 专用隐藏 WebSocket 入站 (端口: $port_argo_ws)"
     else
         argo=no
         update_config_var "argo" "no"
+        update_config_var "argo_type" ""
     fi
     
     # WARP Config
-    read -p "是否启用 WARP? (y/n): " choice
+    read -p "是否启用 WARP 原生出站? (y/n): " choice
     if [[ "$choice" == "y" ]]; then
-        echo "  [1] 全局接管"
-        echo "  [2] 仅 IPv6 优先"
-        read -p "  请选择 (1/2): " warp_sel
-        if [[ "$warp_sel" == "1" ]]; then
-             warp="sx" 
-        else
-             warp="s6x6"
-        fi
+        echo "  --- WARP 高级路由分流菜单 ---"
+        echo "  [1] S+X (Sing-box & Xray) 全局双栈接管 (推荐)"
+        echo "  [2] S+X 仅接管 IPv6 流量"
+        echo "  [3] S+X 仅接管 IPv4 流量"
+        echo "  [4] 仅 Sing-box 接管全局双栈"
+        echo "  [5] 仅 Sing-box 接管 IPv6 流量"
+        echo "  [6] 仅 Xray 接管全局双栈"
+        echo "  [7] 仅 Xray 接管 IPv6 流量"
+        echo "  [8] 手动输入高级分流代码 (例如: x4s6, s4 等)"
+        read -p "  请选择分流策略 (1-8，默认1): " warp_sel
+        case "$warp_sel" in
+            2) warp="s6x6" ;;
+            3) warp="s4x4" ;;
+            4) warp="s" ;;
+            5) warp="s6" ;;
+            6) warp="x" ;;
+            7) warp="x6" ;;
+            8) read -p "  请输入分流代码: " warp ;;
+            *) warp="sx" ;;
+        esac
         wap=yes
         update_config_var "wap" "yes"
+        update_config_var "warp" "$warp"
         
         # Ask for keys
         read -p "  请输入 WARP IPv6 (留空则使用默认/环境变量): " input_wipv6
@@ -440,10 +453,12 @@ interactive_config() {
         [ -n "$input_wpvk" ] && update_config_var "WARP_PRIVATE_KEY" "$input_wpvk" 
         [ -n "$input_wres" ] && update_config_var "WARP_RESERVED" "$input_wres"
         
-        update_config_var "warp" "$warp"
     else
         warp=no
+        wap=no
         update_config_var "warp" "no"
+        update_config_var "wap" "no"
+        # Since WARP is native WireGuard outbounds now, no OS cleanup is required. It naturally vanishes.
     fi
 
     echo "========================================================="

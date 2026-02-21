@@ -17,63 +17,82 @@ v4v6(){
     export v4 v6 v4dq v6dq
 }
 
-register_warp_local() {
-    if ! command -v warp-cli >/dev/null 2>&1; then
-        return 1
-    fi
+register_warp_native_api() {
+    log_info "正在向 Cloudflare API 申请原生 WARP WireGuard 配置..."
     
-    log_info "检测到 warp-cli，尝试本地注册并开启 SOCKS5 代理..."
-    
-    # Check if already registered
-    if warp-cli --accept-tos status | grep -q "Registration missing"; then
-         log_info "注册新 WARP 账户..."
-         warp-cli --accept-tos register >/dev/null 2>&1
-    fi
-    
-    # Set to proxy mode
-    warp-cli --accept-tos mode proxy >/dev/null 2>&1
-    # Connect
-    warp-cli --accept-tos connect >/dev/null 2>&1
-    
-    # wait for socks5 port 40000 to listen
-    local max_wait=10
-    local wait_count=0
-    local proxy_ready=false
-    
-    while [ $wait_count -lt $max_wait ]; do
-        if ss -lntp 2>/dev/null | grep -q ":40000\b" || netstat -lntp 2>/dev/null | grep -q ":40000\b"; then
-            proxy_ready=true
-            break
+    if ! command -v wg >/dev/null 2>&1; then
+        log_warn "未检测到 wg 命令，尝试自动安装 wireguard-tools..."
+        if command -v apt-get >/dev/null 2>&1; then apt-get update -y && apt-get install -y wireguard-tools >/dev/null 2>&1;
+        elif command -v apk >/dev/null 2>&1; then apk add wireguard-tools >/dev/null 2>&1;
+        elif command -v yum >/dev/null 2>&1; then yum install -y wireguard-tools >/dev/null 2>&1;
+        elif command -v dnf >/dev/null 2>&1; then dnf install -y wireguard-tools >/dev/null 2>&1;
         fi
-        sleep 1
-        wait_count=$((wait_count+1))
-    done
-
-    if [ "$proxy_ready" = true ]; then
-        log_info "成功获取本地 WARP SOCKS5 代理 (127.0.0.1:40000)。"
-        export WARP_SOCKS_READY=true
-        return 0
-    else
-        log_warn "WARP SOCKS5 代理启动失败超时。"
-        return 1
     fi
+
+    if command -v wg >/dev/null 2>&1; then
+        local priv=$(wg genkey)
+        local pub=$(echo "$priv" | wg pubkey)
+        
+        local response=""
+        if command -v curl >/dev/null 2>&1; then
+            response=$(curl -sm10 -X POST "https://api.cloudflareclient.com/v0a2158/reg" \
+                -H "User-Agent: okhttp/3.12.1" \
+                -H "Content-Type: application/json" \
+                -d "{\"key\":\"$pub\"}" 2>/dev/null)
+        elif command -v wget >/dev/null 2>&1; then
+            response=$(wget -qO- --timeout=10 --header="User-Agent: okhttp/3.12.1" --header="Content-Type: application/json" --post-data="{\"key\":\"$pub\"}" "https://api.cloudflareclient.com/v0a2158/reg" 2>/dev/null)
+        fi
+        
+        local v6=$(echo "$response" | grep -oE '"v6":"[^"]+"' | cut -d'"' -f4)
+        if [ -n "$v6" ]; then
+            WARP_IPV6="$v6"
+            WARP_PRIVATE_KEY="$priv"
+            WARP_RESERVED="[0,0,0]"
+            log_info "原生存根生成成功! 动态分配 IPv6: $WARP_IPV6"
+            update_config_var "WARP_IPV6" "$WARP_IPV6"
+            update_config_var "WARP_PRIVATE_KEY" "$WARP_PRIVATE_KEY"
+            update_config_var "WARP_RESERVED" "$WARP_RESERVED"
+            return 0
+        fi
+    fi
+    
+    log_warn "原生注册失败或缺少关键编译包，自动降级至后备备用池..."
+    local warpurl=""
+    if command -v curl >/dev/null 2>&1; then
+        warpurl=$(curl -sm5 -k https://warp.xijp.eu.org 2>/dev/null)
+    elif command -v wget >/dev/null 2>&1; then
+        warpurl=$(timeout 5 wget --tries=2 -qO- https://warp.xijp.eu.org 2>/dev/null)
+    fi
+    
+    if echo "$warpurl" | grep -q html || [ -z "$warpurl" ]; then
+        log_warn "后备池拉取失败，启用内置救星应急金钥。"
+        WARP_IPV6='2606:4700:110:8d8d:1845:c39f:2dd5:a03a'
+        WARP_PRIVATE_KEY='52cuYFgCJXp0LAq7+nWJIbCXXgU9eGggOc+Hlfz5u6A='
+        WARP_RESERVED='[215, 69, 233]'
+    else
+        WARP_PRIVATE_KEY=$(echo "$warpurl" | awk -F'：' '/Private_key/{print $2}' | xargs)
+        WARP_IPV6=$(echo "$warpurl" | awk -F'：' '/IPV6/{print $2}' | xargs)
+        WARP_RESERVED=$(echo "$warpurl" | awk -F'：' '/reserved/{print $2}' | xargs)
+    fi
+    
+    update_config_var "WARP_IPV6" "$WARP_IPV6"
+    update_config_var "WARP_PRIVATE_KEY" "$WARP_PRIVATE_KEY"
+    update_config_var "WARP_RESERVED" "$WARP_RESERVED"
+    log_info "配置完毕！"
+    return 0
 }
 
 check_warp_availability(){
-    log_info "检查 WARP 配置..."
+    log_info "检查 WARP 内嵌配置..."
     
-    export WARP_SOCKS_READY=false
+    if [ "$warp" == "no" ] || [ -z "$warp" ]; then
+        return 0
+    fi
     
-    # 尝试设置 warp 代理
-    register_warp_local
-    
-    if [ "$WARP_SOCKS_READY" = true ]; then
-        log_info "WARP 配置有效 (SOCKS5 代理)"
+    if [ -z "$WARP_PRIVATE_KEY" ] || [ -z "$WARP_IPV6" ]; then
+         register_warp_native_api
     else
-        log_warn "未检测到 WARP 代理配置。WARP 功能可能无法使用。"
-        if [ "$warp" != "no" ] && [ -z "$warp" ]; then
-             warp="no"
-        fi
+         log_info "读取到已存在的 WARP 密钥对，跳过注册验证。 (修改配置菜单可重置)"
     fi
 }
 

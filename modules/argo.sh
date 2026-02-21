@@ -31,6 +31,20 @@ install_argo_core() {
     fi
 }
 
+disable_argo_core() {
+    log_info "检查并停用 Argo 隧道服务..."
+    if [ "$SYS_INIT" == "systemd" ] && systemctl is-active --quiet argo 2>/dev/null; then
+        systemctl stop argo >/dev/null 2>&1
+        systemctl disable argo >/dev/null 2>&1
+    elif [ "$SYS_INIT" == "openrc" ] && rc-service argo status 2>/dev/null | grep -q started; then
+        rc-service argo stop >/dev/null 2>&1
+        rc-update del argo default >/dev/null 2>&1
+    else
+        kill -15 $(pgrep -f 'cloudflared' 2>/dev/null) >/dev/null 2>&1
+    fi
+    rm -f "$HOME/agsbx/argo.log"
+}
+
 configure_argo_tunnel() {
     # On re-installs, argo/vmag/ARGO_AUTH/ARGO_DOMAIN may only exist in config.env
     # (init_config only processes env vars, config.env is not yet loaded at this point)
@@ -41,33 +55,20 @@ configure_argo_tunnel() {
     [ -n "$_saved_argo" ] && argo="$_saved_argo"
     [ -n "$_saved_auth" ] && ARGO_AUTH="$_saved_auth"
     [ -n "$_saved_domain" ] && ARGO_DOMAIN="$_saved_domain"
-    # Re-derive guard variable from final argo value
-    [ "$argo" = "vmpt" ] || [ "$argo" = "vwpt" ] && vmag=yes
-
     # Check if Argo is requested
     [ -z "$argo" ] && return 0
-    [ "$argo" = "no" ] && return 0
-    [ -z "$vmag" ] && return 0
+    [ "$argo" = "no" ] && { disable_argo_core; return 0; }
+    [ "$argo" != "yes" ] && { disable_argo_core; return 0; }
 
     log_info "启用 Cloudflared-argo 内核"
     install_argo_core
     
-    # Pre-assign port if not yet available (configure_argo_tunnel runs before regenerate_config)
-    if [ "$argo" = "vmpt" ]; then
-        if [ -z "$port_vm_ws" ]; then
-            port_vm_ws=$(shuf -i 10000-65535 -n 1)
-            update_config_var "port_vm_ws" "$port_vm_ws"
-        fi
-        argoport="${port_vm_ws}"
-        update_config_var "vlvm" "Vmess"
-    elif [ "$argo" = "vwpt" ]; then
-        if [ -z "$port_vw" ]; then
-            port_vw=$(shuf -i 10000-65535 -n 1)
-            update_config_var "port_vw" "$port_vw"
-        fi
-        argoport="${port_vw}"
-        update_config_var "vlvm" "Vless"
+    # Pre-assign port if not yet available
+    if [ -z "$port_argo_ws" ]; then
+        port_argo_ws=$(shuf -i 10000-65535 -n 1)
+        update_config_var "port_argo_ws" "$port_argo_ws"
     fi
+    argoport="${port_argo_ws}"
     update_config_var "argoport" "$argoport"
 
     if [ -n "${ARGO_DOMAIN}" ] && [ -n "${ARGO_AUTH}" ]; then

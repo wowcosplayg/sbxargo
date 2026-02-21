@@ -203,9 +203,11 @@ init_singbox_config() {
       },
       dns: {
         servers: [
+            { "address": "1.1.1.1", "tag": "remote" },
+            { "address": "1.0.0.1", "tag": "remote" },
             { "type": "local", "tag": "local" }
         ],
-        final: "local"
+        final: "remote"
       },
       "ntp": {"enabled": true, "server": "time.cloudflare.com", "server_port": 123, "interval": "30m"},
       inbounds: [],
@@ -514,14 +516,21 @@ configure_singbox_outbound() {
     # Defaults
     outbounds+="{\"type\": \"direct\", \"tag\": \"direct\"}"
 
-    # Add WARP Proxy Outbound if WARP is used
+    # Add WARP Native WireGuard Outbound if WARP is used
     if [[ "$s1outtag" == *"warp"* ]] || [[ "$s2outtag" == *"warp"* ]]; then
         outbounds+=$(cat <<EOF
     ,{
-      "type": "socks",
+      "type": "wireguard",
       "tag": "warp-out",
-      "server": "127.0.0.1",
-      "server_port": 40000
+      "server": "162.159.192.1",
+      "server_port": 2408,
+      "local_address": [
+        "172.16.0.2/32",
+        "${WARP_IPV6}/128"
+      ],
+      "private_key": "${WARP_PRIVATE_KEY}",
+      "peer_public_key": "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
+      "reserved": ${WARP_RESERVED}
     }
 EOF
 )
@@ -550,7 +559,7 @@ EOF
         ],
         "auto_detect_interface": false,
         "final": "${s2outtag}",
-        "default_domain_resolver": "local"
+        "default_domain_resolver": "remote"
     }
 EOF
 )

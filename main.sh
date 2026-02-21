@@ -41,6 +41,7 @@ regenerate_config() {
     add_xhttp_xray
     add_vmess_xray
     add_socks_xray
+    add_argo_inbound_xray
     
     # Sing-box
     add_hysteria2_singbox
