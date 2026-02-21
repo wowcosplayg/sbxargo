@@ -326,7 +326,7 @@ add_anytls_singbox() {
                   "password":"${uuid}"
                 }
             ],
-            "padding_scheme": ["random"],
+            "padding_scheme": [],
             "tls":{
                 "enabled": true,
                 "certificate_path": "$HOME/agsbx/cert.pem",
@@ -531,15 +531,13 @@ EOF
     # Use variable to update outbounds
     jq --argjson new_out "$outbounds" '.outbounds = $new_out' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
     
-    # Route rules
+    # Route rules (Sing-box 1.11+ Rule Action chain)
     local route
     route=$(cat <<EOF
     {
         "rules": [
             {
-                "protocol": ["dns", "ntp"],
-                "port": [53, 123],
-                "outbound": "direct"
+                "action": "sniff"
             },
             {
                 "ip_is_private": true,
@@ -548,9 +546,6 @@ EOF
             {
                 "ip_cidr": [ ${sip} ],
                 "outbound": "${s1outtag}"
-            },
-            {
-                "outbound": "${s2outtag}"
             }
         ],
         "auto_detect_interface": false,
