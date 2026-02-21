@@ -97,9 +97,9 @@ generate_xray_keys() {
         update_config_var "ym_vl_re" "$ym_vl_re"
         
         if [ -z "$xray_key_private" ] || [ -z "$xray_key_public" ]; then
-            key_pair=$("$HOME/agsbx/xray" x25519)
-            private_key=$(echo "$key_pair" | awk '/Private key/ {print $3}')
-            public_key=$(echo "$key_pair" | awk '/Public key/ {print $3}')
+            key_pair=$("$HOME/agsbx/xray" x25519 2>&1)
+            private_key=$(echo "$key_pair" | grep -i "private" | awk '{print $NF}')
+            public_key=$(echo "$key_pair" | grep -i "public" | awk '{print $NF}')
             short_id=$(date +%s%N | sha256sum | cut -c 1-8)
             
             # Persist to config
@@ -123,11 +123,11 @@ generate_xray_keys() {
     
     # Export for current session (with strict safety fallback for unexported envs)
     if [ -z "$xray_key_private" ] && [ -f "$HOME/agsbx/config.env" ]; then
-        xray_key_private=$(grep "^xray_key_private=" "$HOME/agsbx/config.env" | cut -d'"' -f2)
-        xray_key_public=$(grep "^xray_key_public=" "$HOME/agsbx/config.env" | cut -d'"' -f2)
-        xray_key_shortid=$(grep "^xray_key_shortid=" "$HOME/agsbx/config.env" | cut -d'"' -f2)
-        xray_key_de=$(grep "^xray_key_de=" "$HOME/agsbx/config.env" | cut -d'"' -f2)
-        xray_key_en=$(grep "^xray_key_en=" "$HOME/agsbx/config.env" | cut -d'"' -f2)
+        xray_key_private=$(grep "^xray_key_private=" "$HOME/agsbx/config.env" | cut -d'=' -f2- | tr -d '"'\''')
+        xray_key_public=$(grep "^xray_key_public=" "$HOME/agsbx/config.env" | cut -d'=' -f2- | tr -d '"'\''')
+        xray_key_shortid=$(grep "^xray_key_shortid=" "$HOME/agsbx/config.env" | cut -d'=' -f2- | tr -d '"'\''')
+        xray_key_de=$(grep "^xray_key_de=" "$HOME/agsbx/config.env" | cut -d'=' -f2- | tr -d '"'\''')
+        xray_key_en=$(grep "^xray_key_en=" "$HOME/agsbx/config.env" | cut -d'=' -f2- | tr -d '"'\''')
     fi
 
     export private_key_x="${xray_key_private}"

@@ -203,9 +203,9 @@ init_singbox_config() {
       },
       dns: {
         servers: [
-            { "type": "https", "server": "1.1.1.1", "tag": "remote", "detour": "direct" },
-            { "type": "https", "server": "1.0.0.1", "tag": "remote-backup", "detour": "direct" },
-            { "type": "local", "tag": "local", "detour": "direct" }
+            { "type": "https", "server": "1.1.1.1", "tag": "remote" },
+            { "type": "https", "server": "1.0.0.1", "tag": "remote-backup" },
+            { "type": "local", "tag": "local" }
         ],
         strategy: "prefer_ipv4",
         final: "remote"
