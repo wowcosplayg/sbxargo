@@ -183,7 +183,7 @@ handle_action() {
             regenerate_config
             # Restart services to apply changes
             if command -v systemctl >/dev/null 2>&1; then
-                systemctl restart xr sb
+                systemctl restart xr sb argo
                 log_info "Configuration regenerated and services restarted."
             else
                 log_info "Configuration regenerated. Please restart services manually or via Docker restart."
@@ -200,6 +200,8 @@ handle_action() {
             regenerate_config
             start_xray_service
             start_singbox_service
+            install_argo_tunnel
+            configure_argo_tunnel
             check_argo_status
             log_info "服务核心已快速热重启！"
             ;;
