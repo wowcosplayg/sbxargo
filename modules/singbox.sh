@@ -418,9 +418,10 @@ EOF
 add_vmess_singbox() {
     [ "$vmp" != "yes" ] && return
     
-    # Conflict Check: If Xray is installed/configured with VMess, we skip Sing-box VMess on same port
-    if [ -f "$HOME/agsbx/xr.json" ] && grep -q "vmess-xhttp-argo" "$HOME/agsbx/xr.json"; then
-        log_warn "检测到 Xray 已接管 VMess 协议，Sing-box VMess 将自动禁用以避免端口冲突。"
+    # Conflict Check: When Argo is enabled with VMess type, Xray owns the VMess-WS slot exclusively
+    # Sing-box must not add a competing VMess inbound on the same port
+    if [ "$argo" = "yes" ] && [ "$argo_type" != "vless" ]; then
+        log_warn "Argo-VMess 模式已激活：Xray 独占 VMess-WS 通道，Sing-box VMess 入站已自动禁用以避免端口冲突。"
         return
     fi
     

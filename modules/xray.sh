@@ -439,6 +439,13 @@ add_vmess_xray() {
         update_config_var "port_vm_ws" "$port_vm_ws"
     fi
 
+    # Conflict Check: When Argo is enabled with VMess type, skip the general public VMess inbound.
+    # The hidden Argo-VMess-WS inbound on port_argo_ws will handle the traffic instead.
+    if [ "$argo" = "yes" ] && [ "$argo_type" != "vless" ]; then
+        log_warn "Argo-VMess 模式已激活：跳过 Xray 公网 VMess 入站，由 Argo 隐藏通道独占承载。"
+        return
+    fi
+
     # Conflict Check: If Sing-box is installed/configured with VMess, we skip Xray VMess on same port
     if [ -f "$HOME/agsbx/sb.json" ] && grep -q "vmess-sb" "$HOME/agsbx/sb.json"; then
         log_warn "检测到 Sing-box 已接管 VMess 协议，Xray VMess 将自动禁用以避免端口冲突。"
