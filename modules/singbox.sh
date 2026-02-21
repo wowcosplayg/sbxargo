@@ -564,6 +564,10 @@ EOF
 EOF
 )
      jq --argjson new_route "$route" '.route = $new_route' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
+     
+     # Inject dynamic DNS strategy determined by warp.sh
+     local safe_sbyx="${sbyx:-prefer_ipv4}"
+     jq --arg dyn_strategy "$safe_sbyx" '.dns.strategy = $dyn_strategy' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
 }
 
 start_singbox_service() {
