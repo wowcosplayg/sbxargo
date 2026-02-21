@@ -648,6 +648,14 @@ generate_all_links() {
     public_key_x="${xray_key_public}"
     short_id_x="${xray_key_shortid}"
     enkey="${xray_key_en}"
+
+    # Safety fallback: if keys are blank after sourcing config.env, directly extract them
+    local _cfg="$HOME/agsbx/config.env"
+    [ -z "$private_key_x" ] && [ -f "$_cfg" ] && private_key_x=$(grep "^xray_key_private=" "$_cfg" | cut -d'=' -f2- | tr -d '"'\''')
+    [ -z "$public_key_x"  ] && [ -f "$_cfg" ] && public_key_x=$(grep "^xray_key_public=" "$_cfg" | cut -d'=' -f2- | tr -d '"'\''')
+    [ -z "$short_id_x"    ] && [ -f "$_cfg" ] && short_id_x=$(grep "^xray_key_shortid=" "$_cfg" | cut -d'=' -f2- | tr -d '"'\''')
+    [ -z "$enkey"         ] && [ -f "$_cfg" ] && enkey=$(grep "^xray_key_en=" "$_cfg" | cut -d'=' -f2- | tr -d '"'\''')
+    [ -z "$public_key_x"  ] && log_warn "xray public_key_x 为空，Reality 节点链接 pbk 参数将缺失！"
     
     private_key_s="${singbox_key_private}"
     public_key_s="${singbox_key_public}"
