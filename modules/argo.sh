@@ -32,6 +32,18 @@ install_argo_core() {
 }
 
 configure_argo_tunnel() {
+    # On re-installs, argo/vmag/ARGO_AUTH/ARGO_DOMAIN may only exist in config.env
+    # (init_config only processes env vars, config.env is not yet loaded at this point)
+    # Save env-var-sourced values so they take priority over config.env
+    local _saved_argo="$argo" _saved_auth="$ARGO_AUTH" _saved_domain="$ARGO_DOMAIN"
+    [ -f "$HOME/agsbx/config.env" ] && source "$HOME/agsbx/config.env"
+    # Restore env vars (env vars override config.env)
+    [ -n "$_saved_argo" ] && argo="$_saved_argo"
+    [ -n "$_saved_auth" ] && ARGO_AUTH="$_saved_auth"
+    [ -n "$_saved_domain" ] && ARGO_DOMAIN="$_saved_domain"
+    # Re-derive guard variable from final argo value
+    [ "$argo" = "vmpt" ] || [ "$argo" = "vwpt" ] && vmag=yes
+
     # Check if Argo is requested
     [ -z "$argo" ] && return 0
     [ "$argo" = "no" ] && return 0
