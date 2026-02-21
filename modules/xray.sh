@@ -98,8 +98,8 @@ generate_xray_keys() {
         
         if [ ! -e "$HOME/agsbx/xrk/private_key" ]; then
             key_pair=$("$HOME/agsbx/xray" x25519)
-            private_key=$(echo "$key_pair" | grep "PrivateKey" | awk '{print $2}')
-            public_key=$(echo "$key_pair" | grep "PublicKey" | awk '{print $2}')
+            private_key=$(echo "$key_pair" | awk '/Private key/ {print $3}')
+            public_key=$(echo "$key_pair" | awk '/Public key/ {print $3}')
             short_id=$(date +%s%N | sha256sum | cut -c 1-8)
             
             # Persist to config
@@ -120,8 +120,8 @@ generate_xray_keys() {
         # Let's adjust the export section below.
     fi
     
-    # Encryption Keys for VLESS
-    if [ -n "$xhp" ] || [ -n "$vxp" ] || [ -n "$vwp" ]; then
+    # Encryption Keys for VLESS (Required if vxp, vwp, xhp OR argo_type=vless)
+    if [ -n "$xhp" ] || [ -n "$vxp" ] || [ -n "$vwp" ] || [ "$argo_type" = "vless" ]; then
         if [ ! -e "$HOME/agsbx/xrk/dekey" ]; then
             vlkey=$("$HOME/agsbx/xray" vlessenc)
             dekey=$(echo "$vlkey" | grep '"decryption":' | sed -n '2p' | cut -d' ' -f2- | tr -d '"')
@@ -148,6 +148,8 @@ init_xray_config() {
       log: { loglevel: "error" },
       dns: {
         servers: [
+          "1.1.1.1",
+          "1.0.0.1",
           "localhost"
         ]
       },
@@ -474,7 +476,7 @@ EOF
     local json_block
     json_block=$(cat <<EOF
         {
-            "tag": "vmess-xhttp-argo",
+            "tag": "vmess-xhttp",
             "listen": "::",
             "port": ${port_vm_ws},
             "protocol": "vmess",
@@ -500,6 +502,87 @@ EOF
          }
 EOF
 )
+    jq --argjson new "$json_block" '.inbounds += [$new]' "$HOME/agsbx/xr.json" > "$HOME/agsbx/xr.json.tmp" && mv "$HOME/agsbx/xr.json.tmp" "$HOME/agsbx/xr.json"
+}
+
+add_argo_inbound_xray() {
+    [ "$argo" != "yes" ] && return
+    
+    # Ensure port is set
+    if [ -z "$port_argo_ws" ]; then
+        port_argo_ws=$(cat "$HOME/agsbx/port_argo_ws" 2>/dev/null)
+        if [ -z "$port_argo_ws" ]; then
+            port_argo_ws=$(shuf -i 10000-65535 -n 1)
+            update_config_var "port_argo_ws" "$port_argo_ws"
+        fi
+    fi
+    
+    log_info "添加 Argo 专用 WebSocket 隐藏入站: $port_argo_ws"
+    # Do NOT run open_port for Argo. It must remain explicitly 127.0.0.1 bound for security.
+
+    local json_block
+    if [ "$argo_type" == "vless" ]; then
+        json_block=$(cat <<EOF
+        {
+          "tag":"argo-vless-ws",
+          "listen": "127.0.0.1",
+          "port": ${port_argo_ws},
+          "protocol": "vless",
+          "settings": {
+            "clients": [
+              {
+                "id": "${uuid}"
+              }
+            ],
+            "decryption": "${dekey}"
+          },
+          "streamSettings": {
+            "network": "ws",
+            "security": "none",
+            "wsSettings": {
+              "path": "/${uuid}-argo"
+            }
+          },
+          "sniffing": {
+            "enabled": true,
+            "destOverride": ["http", "tls", "quic"],
+            "metadataOnly": false
+          }
+        }
+EOF
+)
+    else
+        # VMess Default fallback
+        json_block=$(cat <<EOF
+        {
+            "tag": "argo-vmess-ws",
+            "listen": "127.0.0.1",
+            "port": ${port_argo_ws},
+            "protocol": "vmess",
+            "settings": {
+                "clients": [
+                    {
+                        "id": "${uuid}"
+                    }
+                ]
+            },
+            "streamSettings": {
+                "network": "ws",
+                "security": "none",
+                "wsSettings": {
+                  "path": "/${uuid}-argo"
+                }
+            },
+            "sniffing": {
+                "enabled": true,
+                "destOverride": ["http", "tls", "quic"],
+                "metadataOnly": false
+            }
+        }
+EOF
+)
+    fi
+
     jq --argjson new "$json_block" '.inbounds += [$new]' "$HOME/agsbx/xr.json" > "$HOME/agsbx/xr.json.tmp" && mv "$HOME/agsbx/xr.json.tmp" "$HOME/agsbx/xr.json"
 }
 
@@ -560,22 +643,43 @@ configure_xray_outbound() {
       \"protocol\": \"freedom\",
       \"tag\": \"direct\",
       \"settings\": {
-      \"domainStrategy\":\"${xryx}\"
+      \"domainStrategy\":\"AsIs\"
      }
     }]")
     
     # Add WARP Proxy Outbound if WARP is used
     if [[ "$x1outtag" == *"warp"* ]] || [[ "$x2outtag" == *"warp"* ]]; then
-        outbounds=$(echo "$outbounds" | jq ". + [{
-      \"protocol\": \"socks\",
-      \"tag\": \"warp-out\",
+        outbounds=$(echo "$outbounds" | jq ". + [
+    {
+      \"tag\": \"x-warp-out\",
+      \"protocol\": \"wireguard\",
       \"settings\": {
-        \"servers\": [
+        \"secretKey\": \"${WARP_PRIVATE_KEY}\",
+        \"address\": [
+          \"172.16.0.2/32\",
+          \"${WARP_IPV6}/128\"
+        ],
+        \"peers\": [
           {
-            \"address\": \"127.0.0.1\",
-            \"port\": 40000
+            \"publicKey\": \"bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=\",
+            \"allowedIPs\": [
+              \"0.0.0.0/0\",
+              \"::/0\"
+            ],
+            \"endpoint\": \"162.159.192.1:2408\"
           }
-        ]
+        ],
+        \"reserved\": ${WARP_RESERVED}
+      }
+    },
+    {
+      \"tag\":\"warp-out\",
+      \"protocol\":\"freedom\",
+      \"settings\":{
+        \"domainStrategy\":\"${wxryx}\"
+      },
+      \"proxySettings\":{
+        \"tag\":\"x-warp-out\"
       }
     }]")
     fi
@@ -601,7 +705,7 @@ configure_xray_outbound() {
     ]
 EOF
 )
-    jq --argjson new_rules "$rules" '.routing.rules = $new_rules | .routing.domainStrategy = "AsIs"' "$HOME/agsbx/xr.json" > "$HOME/agsbx/xr.json.tmp" && mv "$HOME/agsbx/xr.json.tmp" "$HOME/agsbx/xr.json"
+    jq --argjson new_rules "$rules" '.routing.rules = $new_rules | .routing.domainStrategy = "'${xryx}'"' "$HOME/agsbx/xr.json" > "$HOME/agsbx/xr.json.tmp" && mv "$HOME/agsbx/xr.json.tmp" "$HOME/agsbx/xr.json"
 }
 
 start_xray_service() {

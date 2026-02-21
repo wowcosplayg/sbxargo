@@ -607,6 +607,11 @@ EOF
     add_port "Any-Reality" "port_ar" "tcp"
     add_port "Socks5" "port_so" "tcp/udp"
     
+    if [ "$argo" == "yes" ] && [ -n "$port_argo_ws" ]; then
+        echo " - Argo-WS (隐藏/内置): $port_argo_ws (tcp/127.0.0.1)"
+        echo "tcp:$port_argo_ws          # Argo-WS (tcp/127.0.0.1)" >> "$port_conf"
+    fi
+    
     echo "========================================================="
     echo
     cat "$port_conf"
@@ -723,6 +728,11 @@ generate_all_links() {
             
             echo "vless://$uuid@$server_ip:$p_port?encryption=none${flow_param}&security=reality&sni=$p_sni&fp=chrome&pbk=$public_key_x&sid=$short_id_x&type=tcp&headerType=none#${sxname}vl-reality-vision-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
+        
+        if echo "$xr_content" | grep -q 'socks5-xr'; then
+             local p_port=$(get_val_for_tag "socks5-xr" ".port")
+             echo "socks5://$uuid:$uuid@$server_ip:$p_port#${sxname}socks5-$hostname" >> "$HOME/agsbx/jh.txt"
+        fi
     fi
     
     # Helper to dynamically extract val from Sing-box config
@@ -819,23 +829,18 @@ generate_all_links() {
     fi
     
     # Argo Links
-    argodomain="${sbargoym}"
-    [ -z "$argodomain" ] && argodomain=$(grep -a trycloudflare.com "$HOME/agsbx/argo.log" 2>/dev/null | awk 'NR==2{print}' | awk -F// '{print $2}' | awk '{print $1}')
-    
-    if [ -n "$argodomain" ]; then
-        vlvm="${vlvm}"
-        if [ "$vlvm" = "Vmess" ]; then
-             local vp_path=$(echo "$xr_content" | jq -r '.inbounds[] | select(.tag == "vmess-xhttp-argo" or .tag == "vmess-xhttp") | .streamSettings.wsSettings.path // empty')
-             [ -z "$vp_path" ] && vp_path=$(echo "$sb_content" | jq -r '.inbounds[] | select(.tag == "vmess-sb") | .transport.path // empty')
-             
-             echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-tls-argo-$hostname-443\", \"add\": \"$argodomain\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"${vp_path}\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
-        elif [ "$vlvm" = "Vless" ]; then
-             local flow_val=$(get_val_for_tag "vless-xhttp-cdn" ".settings.clients[0].flow")
-             local p_path=$(get_val_for_tag "vless-xhttp-cdn" ".streamSettings.xhttpSettings.path")
-             local flow_param=""
-             [ -n "$flow_val" ] && flow_param="&flow=$flow_val"
-             
-             echo "vless://$uuid@$argodomain:443?encryption=$enkey&type=xhttp&host=$argodomain&path=${p_path}&mode=packet-up&security=tls&sni=$argodomain&fp=chrome${flow_param}&insecure=0&allowInsecure=0#${sxname}vless-xhttp-tls-argo-enc-$hostname" >> "$HOME/agsbx/jh.txt"
+    if [ "$argo" == "yes" ]; then
+        argodomain="${sbargoym}"
+        [ -z "$argodomain" ] && argodomain=$(grep -a trycloudflare.com "$HOME/agsbx/argo.log" 2>/dev/null | awk 'NR==2{print}' | awk -F// '{print $2}' | awk '{print $1}')
+        
+        if [ -n "$argodomain" ]; then
+            if [ "$argo_type" = "vmess" ]; then
+                 local vp_path="/${uuid}-argo"
+                 echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}argo-vmess-ws-$hostname\", \"add\": \"$argodomain\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"${vp_path}\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
+            elif [ "$argo_type" = "vless" ]; then
+                 local p_path="/${uuid}-argo"
+                 echo "vless://$uuid@$argodomain:443?encryption=$enkey&type=ws&host=$argodomain&path=${p_path}&security=tls&sni=$argodomain&fp=chrome&alpn=http/1.1#${sxname}argo-vless-ws-$hostname" >> "$HOME/agsbx/jh.txt"
+            fi
         fi
     fi
     
