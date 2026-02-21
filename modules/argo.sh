@@ -94,7 +94,7 @@ NoNewPrivileges=yes
 LimitNPROC=512000
 LimitNOFILE=512000
 TimeoutStartSec=0
-ExecStart=${HOME}/agsbx/cloudflared tunnel --no-autoupdate --edge-ip-version auto --protocol auto --token "${ARGO_AUTH}"
+ExecStart=${HOME}/agsbx/cloudflared tunnel --no-autoupdate --edge-ip-version auto --protocol auto run --token "${ARGO_AUTH}"
 Restart=on-failure
 RestartSec=5s
 [Install]
@@ -108,7 +108,7 @@ EOF
 #!/sbin/openrc-run
 description="argo service"
 command="${HOME}/agsbx/cloudflared tunnel"
-command_args="--no-autoupdate --edge-ip-version auto --protocol auto --token ${ARGO_AUTH}"
+command_args="--no-autoupdate --edge-ip-version auto --protocol auto run --token ${ARGO_AUTH}"
 pidfile="/run/argo.pid"
 command_background="yes"
 depend() {
@@ -119,7 +119,7 @@ EOF
             rc-update add argo default >/dev/null 2>&1
             rc-service argo start >/dev/null 2>&1
         else
-            nohup "$HOME/agsbx/cloudflared" tunnel --no-autoupdate --edge-ip-version auto --protocol auto --token "${ARGO_AUTH}" >/dev/null 2>&1 &
+            nohup "$HOME/agsbx/cloudflared" tunnel --no-autoupdate --edge-ip-version auto --protocol auto run --token "${ARGO_AUTH}" >/dev/null 2>&1 &
         fi
         
         update_config_var "sbargoym" "${ARGO_DOMAIN}"
