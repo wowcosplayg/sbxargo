@@ -379,13 +379,29 @@ interactive_config() {
              update_config_var "ARGO_AUTH" "$agk"
              update_config_var "ARGO_DOMAIN" "$agn"
         fi
-        argo="vmpt"
-        if [ "$vmp" != "yes" ]; then
-             echo "  * 已自动为您启用 Argo 依赖的 VMess 协议"
-             vmp=yes
-             update_config_var "vmp" "yes"
+        echo "  选择承载 Argo 的底层协议:"
+        echo "  [1] VMess (推荐, 兼容性最佳)"
+        echo "  [2] VLESS (新 XHTTP 承载)"
+        read -p "  请选择 (1/2): " argo_proto
+        if [[ "$argo_proto" == "2" ]]; then
+             argo="vwpt"
+             update_config_var "argo" "vwpt"
+             update_config_var "vlvm" "Vless"
+             if [ "$vwp" != "yes" ]; then
+                  echo "  * 已自动为您启用 Argo 依赖的 Vless-XHTTP-Packet 协议"
+                  vwp=yes
+                  update_config_var "vwp" "yes"
+             fi
+        else
+             argo="vmpt"
+             update_config_var "argo" "vmpt"
+             update_config_var "vlvm" "Vmess"
+             if [ "$vmp" != "yes" ]; then
+                  echo "  * 已自动为您启用 Argo 依赖的 VMess 协议"
+                  vmp=yes
+                  update_config_var "vmp" "yes"
+             fi
         fi
-        update_config_var "argo" "vmpt"
     else
         argo=no
         update_config_var "argo" "no"
@@ -399,6 +415,8 @@ interactive_config() {
         read -p "  请选择 (1/2): " warp_sel
         if [[ "$warp_sel" == "1" ]]; then
              warp="x6" 
+        else
+             warp="v6"
         fi
         
         # Ask for keys
