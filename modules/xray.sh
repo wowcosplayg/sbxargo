@@ -341,7 +341,7 @@ EOF
         "security": "${sec_type}",
         "xhttpSettings": {
           "host": "",
-          "path": "${uuid}-vx",
+          "path": "/${uuid}-vx",
           "mode": "auto"
         }${tls_block}
       },
@@ -414,7 +414,7 @@ EOF
         "network": "xhttp",
         "security": "${sec_type}",
         "xhttpSettings": {
-          "path": "${uuid}-vw",
+          "path": "/${uuid}-vw",
           "mode": "packet-up"
         }${tls_block}
       },

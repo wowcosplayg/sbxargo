@@ -465,8 +465,8 @@ EOF
             }
         ],
         "transport": {
-            "type": "http",
-            "path": "${uuid}-vm"
+            "type": "ws",
+            "path": "/${uuid}-vm"
         }${tls_block}
     }
 EOF
