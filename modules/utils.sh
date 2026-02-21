@@ -359,6 +359,8 @@ generate_clash_hysteria2_proxy() {
     local params="${link#*\?}"
     params="${params%%#*}"
     local sni=$(echo "$params" | grep -oP 'sni=\K[^&]+' || echo "$host")
+    local obfs=$(echo "$params" | grep -oP 'obfs=\K[^&]+' || echo "")
+    local obfs_pwd=$(echo "$params" | grep -oP 'obfs-password=\K[^&]+' || echo "")
 
     cat <<EOF
   - name: "$name"
@@ -369,6 +371,8 @@ generate_clash_hysteria2_proxy() {
     skip-cert-verify: true
 EOF
     [ -n "$sni" ] && [ "$sni" != "$host" ] && echo "    sni: $sni"
+    [ -n "$obfs" ] && echo "    obfs: $obfs"
+    [ -n "$obfs_pwd" ] && echo "    obfs-password: $obfs_pwd"
 }
 
 generate_clash_tuic_proxy() {
@@ -387,6 +391,7 @@ generate_clash_tuic_proxy() {
     params="${params%%#*}"
     local congestion=$(echo "$params" | grep -oP 'congestion_control=\K[^&]+' || echo "bbr")
     local alpn=$(echo "$params" | grep -oP 'alpn=\K[^&]+' || echo "h3")
+    local udp_relay_mode=$(echo "$params" | grep -oP 'udp_relay_mode=\K[^&]+' || echo "native")
 
     cat <<EOF
   - name: "$name"
@@ -399,6 +404,7 @@ generate_clash_tuic_proxy() {
     disable-sni: false
     reduce-rtt: true
     congestion-controller: $congestion
+    udp-relay-mode: $udp_relay_mode
     skip-cert-verify: true
 EOF
 }
