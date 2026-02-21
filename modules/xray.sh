@@ -92,7 +92,7 @@ generate_xray_keys() {
     chmod 700 "$HOME/agsbx/xrk"
     
     # Reality Keys
-    if [ -n "$xhp" ] || [ -n "$vlp" ]; then
+    if [ "$xhp" = "yes" ] || [ "$vlp" = "yes" ]; then
         if [ -z "$ym_vl_re" ]; then ym_vl_re=apple.com; fi
         update_config_var "ym_vl_re" "$ym_vl_re"
         
@@ -110,7 +110,7 @@ generate_xray_keys() {
     fi
     
     # Encryption Keys for VLESS (Required if vxp, vwp, xhp OR argo_type=vless)
-    if [ -n "$xhp" ] || [ -n "$vxp" ] || [ -n "$vwp" ] || [ "$argo_type" = "vless" ]; then
+    if [ "$xhp" = "yes" ] || [ "$vxp" = "yes" ] || [ "$vwp" = "yes" ] || [ "$argo_type" = "vless" ]; then
         if [ -z "$xray_key_de" ] || [ -z "$xray_key_en" ]; then
             vlkey=$("$HOME/agsbx/xray" vlessenc)
             dekey=$(echo "$vlkey" | grep '"decryption":' | sed -n '2p' | cut -d' ' -f2- | tr -d '"')

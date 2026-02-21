@@ -203,8 +203,8 @@ init_singbox_config() {
       },
       dns: {
         servers: [
-            { "type": "https", "server": "1.1.1.1", "tag": "remote" },
-            { "type": "https", "server": "1.0.0.1", "tag": "remote-backup" },
+            { "type": "udp", "server": "1.1.1.1", "tag": "remote" },
+            { "type": "udp", "server": "8.8.8.8", "tag": "remote-backup" },
             { "type": "local", "tag": "local" }
         ],
         strategy: "prefer_ipv4",
