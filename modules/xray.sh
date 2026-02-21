@@ -121,7 +121,15 @@ generate_xray_keys() {
         fi
     fi
     
-    # Export for current session
+    # Export for current session (with strict safety fallback for unexported envs)
+    if [ -z "$xray_key_private" ] && [ -f "$HOME/agsbx/config.env" ]; then
+        xray_key_private=$(grep "^xray_key_private=" "$HOME/agsbx/config.env" | cut -d'"' -f2)
+        xray_key_public=$(grep "^xray_key_public=" "$HOME/agsbx/config.env" | cut -d'"' -f2)
+        xray_key_shortid=$(grep "^xray_key_shortid=" "$HOME/agsbx/config.env" | cut -d'"' -f2)
+        xray_key_de=$(grep "^xray_key_de=" "$HOME/agsbx/config.env" | cut -d'"' -f2)
+        xray_key_en=$(grep "^xray_key_en=" "$HOME/agsbx/config.env" | cut -d'"' -f2)
+    fi
+
     export private_key_x="${xray_key_private}"
     export public_key_x="${xray_key_public}"
     export short_id_x="${xray_key_shortid}"

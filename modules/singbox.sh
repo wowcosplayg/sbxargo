@@ -203,14 +203,14 @@ init_singbox_config() {
       },
       dns: {
         servers: [
-            { "address": "1.1.1.1", "tag": "remote", "detour": "direct" },
-            { "address": "1.0.0.1", "tag": "remote-backup", "detour": "direct" },
-            { "address": "local", "tag": "local", "detour": "direct" }
+            { "type": "https", "server": "1.1.1.1", "tag": "remote", "detour": "direct" },
+            { "type": "https", "server": "1.0.0.1", "tag": "remote-backup", "detour": "direct" },
+            { "type": "local", "tag": "local", "detour": "direct" }
         ],
         strategy: "prefer_ipv4",
         final: "remote"
       },
-      "ntp": {"enabled": false, "server": "time.apple.com", "server_port": 123, "interval": "30m"},
+
       inbounds: [],
       outbounds: [],
       route: {}
@@ -375,9 +375,6 @@ add_anyreality_singbox() {
                         "server": "${ym_vl_re}",
                         "server_port": 443
                     },
-                    "server_names": [
-                        "${ym_vl_re}"
-                    ],
                     "private_key": "$private_key_s",
                     "short_id": ["$short_id_s"]
                 }
