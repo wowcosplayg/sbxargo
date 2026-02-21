@@ -203,13 +203,13 @@ init_singbox_config() {
       },
       dns: {
         servers: [
-            { "address": "1.1.1.1", "tag": "remote" },
-            { "address": "1.0.0.1", "tag": "remote" },
-            { "type": "local", "tag": "local" }
+            { "address": "1.1.1.1", "tag": "remote", "detour": "direct" },
+            { "address": "1.0.0.1", "tag": "remote-backup", "detour": "direct" },
+            { "address": "local", "tag": "local", "detour": "direct" }
         ],
         final: "remote"
       },
-      "ntp": {"enabled": true, "server": "time.cloudflare.com", "server_port": 123, "interval": "30m"},
+      "ntp": {"enabled": false, "server": "time.apple.com", "server_port": 123, "interval": "30m"},
       inbounds: [],
       outbounds: [],
       route: {}

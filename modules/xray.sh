@@ -96,7 +96,7 @@ generate_xray_keys() {
         if [ -z "$ym_vl_re" ]; then ym_vl_re=apple.com; fi
         update_config_var "ym_vl_re" "$ym_vl_re"
         
-        if [ ! -e "$HOME/agsbx/xrk/private_key" ]; then
+        if [ -z "$xray_key_private" ] || [ -z "$xray_key_public" ]; then
             key_pair=$("$HOME/agsbx/xray" x25519)
             private_key=$(echo "$key_pair" | awk '/Private key/ {print $3}')
             public_key=$(echo "$key_pair" | awk '/Public key/ {print $3}')
@@ -106,23 +106,12 @@ generate_xray_keys() {
             update_config_var "xray_key_private" "$private_key"
             update_config_var "xray_key_public" "$public_key"
             update_config_var "xray_key_shortid" "$short_id"
-        else
-            # If not regenerating, ensure loaded (for safety)
-            private_key="${xray_key_private}"
-            public_key="${xray_key_public}"
-            short_id="${xray_key_shortid}"
         fi
-        
-        # Write to temp files for internal Xray consistency/fallback if needed by other tools?
-        # Ideally we shouldn't need them anymore, but let's keep the key files for purely Xray internal use if referenced by config?
-        # The xray config references "$private_key_x" which is an env var.
-        # But wait, generate_xray_keys sets `private_key` then exports `private_key_x`.
-        # Let's adjust the export section below.
     fi
     
     # Encryption Keys for VLESS (Required if vxp, vwp, xhp OR argo_type=vless)
     if [ -n "$xhp" ] || [ -n "$vxp" ] || [ -n "$vwp" ] || [ "$argo_type" = "vless" ]; then
-        if [ ! -e "$HOME/agsbx/xrk/dekey" ]; then
+        if [ -z "$xray_key_de" ] || [ -z "$xray_key_en" ]; then
             vlkey=$("$HOME/agsbx/xray" vlessenc)
             dekey=$(echo "$vlkey" | grep '"decryption":' | sed -n '2p' | cut -d' ' -f2- | tr -d '"')
             enkey=$(echo "$vlkey" | grep '"encryption":' | sed -n '2p' | cut -d' ' -f2- | tr -d '"')
