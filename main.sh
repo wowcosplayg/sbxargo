@@ -72,11 +72,17 @@ install_flow() {
     check_system_compatibility
     get_server_ip
     
+    # 2. Interactive Config (only if terminal is interactive and no config exists)
+    if [ -t 0 ]; then
+        validate_env_vars || interactive_config
+    else
+        validate_env_vars
+    fi
     
-    # 2. Install Dependencies
+    # 3. Install Dependencies
     install_dependencies
     
-    # 3. System Optimization
+    # 4. System Optimization
     optimize_system
     enable_bbr
     

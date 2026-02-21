@@ -99,7 +99,7 @@ generate_xray_keys() {
         if [ ! -e "$HOME/agsbx/xrk/private_key" ]; then
             key_pair=$("$HOME/agsbx/xray" x25519)
             private_key=$(echo "$key_pair" | grep "PrivateKey" | awk '{print $2}')
-            public_key=$(echo "$key_pair" | grep "Password" | awk '{print $2}')
+            public_key=$(echo "$key_pair" | grep "PublicKey" | awk '{print $2}')
             short_id=$(date +%s%N | sha256sum | cut -c 1-8)
             
             # Persist to config
@@ -126,8 +126,6 @@ generate_xray_keys() {
             vlkey=$("$HOME/agsbx/xray" vlessenc)
             dekey=$(echo "$vlkey" | grep '"decryption":' | sed -n '2p' | cut -d' ' -f2- | tr -d '"')
             enkey=$(echo "$vlkey" | grep '"encryption":' | sed -n '2p' | cut -d' ' -f2- | tr -d '"')
-            dekey=$(echo "$vlkey" | grep '"decryption":' | sed -n '2p' | cut -d' ' -f2- | tr -d '"')
-            enkey=$(echo "$vlkey" | grep '"encryption":' | sed -n '2p' | cut -d' ' -f2- | tr -d '"')
             
             update_config_var "xray_key_de" "$dekey"
             update_config_var "xray_key_en" "$enkey"
@@ -150,9 +148,6 @@ init_xray_config() {
       log: { loglevel: "error" },
       dns: {
         servers: [
-          "https+local://8.8.8.8/dns-query",
-          "8.8.8.8",
-          "1.1.1.1",
           "localhost"
         ]
       },
@@ -169,7 +164,7 @@ init_xray_config() {
       },
       inbounds: [],
       outbounds: [],
-      routing: { domainStrategy: "IPOnDemand", rules: [] }
+      routing: { domainStrategy: "AsIs", rules: [] }
     }' > "$HOME/agsbx/xr.json"
 }
 
@@ -271,7 +266,7 @@ add_xhttp_xray() {
         },
         "xhttpSettings": {
           "host": "",
-          "path": "${uuid}-xh",
+          "path": "/${uuid}-xh",
           "mode": "auto"
         }
       },
@@ -513,7 +508,6 @@ add_socks_xray() {
     
     if [ -z "$port_so" ] && [ ! -e "$HOME/agsbx/port_so" ]; then
         port_so=$(shuf -i 10000-65535 -n 1)
-        port_so=$(shuf -i 10000-65535 -n 1)
         update_config_var "port_so" "$port_so"
     elif [ -n "$port_so" ]; then
         update_config_var "port_so" "$port_so"
@@ -607,7 +601,7 @@ configure_xray_outbound() {
     ]
 EOF
 )
-    jq --argjson new_rules "$rules" '.routing.rules = $new_rules | .routing.domainStrategy = "IPOnDemand"' "$HOME/agsbx/xr.json" > "$HOME/agsbx/xr.json.tmp" && mv "$HOME/agsbx/xr.json.tmp" "$HOME/agsbx/xr.json"
+    jq --argjson new_rules "$rules" '.routing.rules = $new_rules | .routing.domainStrategy = "AsIs"' "$HOME/agsbx/xr.json" > "$HOME/agsbx/xr.json.tmp" && mv "$HOME/agsbx/xr.json.tmp" "$HOME/agsbx/xr.json"
 }
 
 start_xray_service() {

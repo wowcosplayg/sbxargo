@@ -650,16 +650,16 @@ generate_all_links() {
     sskey="${sskey}"
     cert_sha256="${cert_sha256}"
 
+    # Helper to dynamically extract val from Xray config
+    get_val_for_tag() {
+        local tag="$1"
+        local path="$2"
+        echo "$xr_content" | jq -r ".inbounds[] | select(.tag == \"$tag\") | ${path} // empty"
+    }
+
     # Check Xray Config
     if [ -f "$HOME/agsbx/xr.json" ]; then
         local xr_content=$(cat "$HOME/agsbx/xr.json")
-        
-        # Helper to dynamically extract flow if it exists for a tag
-        get_val_for_tag() {
-            local tag="$1"
-            local path="$2"
-            echo "$xr_content" | jq -r ".inbounds[] | select(.tag == \"$tag\") | ${path} // empty"
-        }
         
         if echo "$xr_content" | grep -q 'xhttp-reality'; then
             local p_port=$(get_val_for_tag "xhttp-reality" ".port")
@@ -725,20 +725,20 @@ generate_all_links() {
         fi
     fi
     
+    # Helper to dynamically extract val from Sing-box config
+    get_sb_val_for_tag() {
+        local tag="$1"
+        local path="$2"
+        echo "$sb_content" | jq -r ".inbounds[] | select(.tag == \"$tag\") | ${path} // empty"
+    }
+
     # Check Sing-box Config
     if [ -f "$HOME/agsbx/sb.json" ]; then
         local sb_content=$(cat "$HOME/agsbx/sb.json")
         
-        # Helper to dynamically extract val if it exists for a tag
-        get_sb_val_for_tag() {
-            local tag="$1"
-            local path="$2"
-            echo "$sb_content" | jq -r ".inbounds[] | select(.tag == \"$tag\") | ${path} // empty"
-        }
-        
         if echo "$sb_content" | grep -q 'ss-2022'; then
             local p_port=$(get_sb_val_for_tag "ss-2022" ".listen_port")
-            echo "ss://$(echo -n "2022-blake3-aes-256-gcm:$sskey@$server_ip:$p_port" | base64 -w0)#${sxname}Shadowsocks-2022-$hostname" >> "$HOME/agsbx/jh.txt"
+            echo "ss://$(echo -n "2022-blake3-aes-256-gcm:$sskey" | base64 -w0)@$server_ip:$p_port#${sxname}Shadowsocks-2022-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
         
         if echo "$sb_content" | grep -q 'socks5-sb'; then
@@ -748,7 +748,8 @@ generate_all_links() {
         
         if echo "$sb_content" | grep -q 'anytls-sb'; then
             local p_port=$(get_sb_val_for_tag "anytls-sb" ".listen_port")
-            echo "anytls://$uuid@$server_ip:$p_port?insecure=1&allowInsecure=1#${sxname}anytls-$hostname" >> "$HOME/agsbx/jh.txt"
+            random_cn="${cert_cn:-www.bing.com}"
+            echo "anytls://$uuid@$server_ip:$p_port?password=$uuid&sni=$random_cn&insecure=1&allowInsecure=1#${sxname}anytls-$hostname" >> "$HOME/agsbx/jh.txt"
         fi
         
         if echo "$sb_content" | grep -q 'vless-reality-sb'; then
@@ -803,7 +804,7 @@ generate_all_links() {
             local vmt="\"tls\": \"tls\", \"sni\": \"$server_ip\", \"alpn\": \"h3,h2,http/1.1\", \"fp\": \"chrome\""
             local vmtc="\"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"alpn\": \"h3,h2,http/1.1\", \"fp\": \"chrome\""
             
-            echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-$hostname\", \"add\": \"$server_ip\", \"port\": \"$v_port\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"www.bing.com\", \"path\": \"${v_path}\", ${vmt}}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
+            echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-$hostname\", \"add\": \"$server_ip\", \"port\": \"$v_port\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"\", \"path\": \"${v_path}\", ${vmt}}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"
             
             if [ -n "$xvvmcdnym" ]; then
                  echo "vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-cdn-$hostname\", \"add\": \"$xvvmcdnym\", \"port\": \"$v_port\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"${v_path}\", ${vmtc}}" | base64 -w0)" >> "$HOME/agsbx/jh.txt"

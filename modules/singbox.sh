@@ -203,12 +203,9 @@ init_singbox_config() {
       },
       dns: {
         servers: [
-            { "type": "https", "server": "8.8.8.8", "tag": "remote-doh" },
-            { "type": "tcp", "server": "1.1.1.1", "tag": "remote-tcp" },
             { "type": "local", "tag": "local" }
         ],
-        final: "remote-doh",
-        strategy: "prefer_ipv4"
+        final: "local"
       },
       "ntp": {"enabled": true, "server": "time.cloudflare.com", "server_port": 123, "interval": "30m"},
       inbounds: [],
@@ -564,10 +561,6 @@ EOF
 EOF
 )
      jq --argjson new_route "$route" '.route = $new_route' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
-     
-     # Inject dynamic DNS strategy determined by warp.sh
-     local safe_sbyx="${sbyx:-prefer_ipv4}"
-     jq --arg dyn_strategy "$safe_sbyx" '.dns.strategy = $dyn_strategy' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
 }
 
 start_singbox_service() {

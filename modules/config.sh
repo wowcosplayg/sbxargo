@@ -47,10 +47,16 @@ init_config() {
     export ym_vl_re=${reym:-''}
     export cdnym=${cdnym:-''}
     export argo=${argo:-''}
+    # Derive vmag from argo state for configure_argo_tunnel guard
+    [ "$argo" = "vmpt" ] || [ "$argo" = "vwpt" ] && vmag=yes
+    export vmag=${vmag:-''}
     export ARGO_DOMAIN=${agn:-''}
     export ARGO_AUTH=${agk:-''}
     export ippz=${ippz:-''}
     export warp=${warp:-''}
+    # Derive wap from warp state for configure_warp_routing guard
+    [ "$warp" != "no" ] && [ -n "$warp" ] && wap=yes
+    export wap=${wap:-''}
     export name=${name:-''}
     export oap=${oap:-''}
     
@@ -385,7 +391,9 @@ interactive_config() {
         read -p "  请选择 (1/2): " argo_proto
         if [[ "$argo_proto" == "2" ]]; then
              argo="vwpt"
+             vmag=yes
              update_config_var "argo" "vwpt"
+             update_config_var "vmag" "yes"
              update_config_var "vlvm" "Vless"
              if [ "$vwp" != "yes" ]; then
                   echo "  * 已自动为您启用 Argo 依赖的 Vless-XHTTP-Packet 协议"
@@ -394,7 +402,9 @@ interactive_config() {
              fi
         else
              argo="vmpt"
+             vmag=yes
              update_config_var "argo" "vmpt"
+             update_config_var "vmag" "yes"
              update_config_var "vlvm" "Vmess"
              if [ "$vmp" != "yes" ]; then
                   echo "  * 已自动为您启用 Argo 依赖的 VMess 协议"
@@ -418,6 +428,8 @@ interactive_config() {
         else
              warp="s6x6"
         fi
+        wap=yes
+        update_config_var "wap" "yes"
         
         # Ask for keys
         read -p "  请输入 WARP IPv6 (留空则使用默认/环境变量): " input_wipv6
