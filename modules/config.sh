@@ -414,9 +414,9 @@ interactive_config() {
         echo "  [2] 仅 IPv6 优先"
         read -p "  请选择 (1/2): " warp_sel
         if [[ "$warp_sel" == "1" ]]; then
-             warp="x6" 
+             warp="sx" 
         else
-             warp="v6"
+             warp="s6x6"
         fi
         
         # Ask for keys

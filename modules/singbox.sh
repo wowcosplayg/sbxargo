@@ -330,7 +330,7 @@ add_anytls_singbox() {
                   "password":"${uuid}"
                 }
             ],
-            "padding_scheme": [],
+            "padding_scheme": ["random"],
             "tls":{
                 "enabled": true,
                 "certificate_path": "$HOME/agsbx/cert.pem",
@@ -408,7 +408,7 @@ add_shadowsocks_singbox() {
             "password": "$sskey",
             "multiplex": {
                 "enabled": true,
-                "padding": false
+                "padding": true
             }
     }
 EOF
