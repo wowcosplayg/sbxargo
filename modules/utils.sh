@@ -761,10 +761,10 @@ generate_all_links() {
              
              if [ -n "$cert_sha256" ]; then
                  # Use Pinning (Recommended)
-                 echo "hysteria2://$uuid@$server_ip:$p_port?security=tls&alpn=h3&pinSHA256=$cert_sha256&sni=$random_cn#${sxname}hy2-$hostname" >> "$HOME/agsbx/jh.txt"
+                 echo "hysteria2://$uuid@$server_ip:$p_port?obfs=salamander&obfs-password=${hy2_obfs_pwd}&security=tls&alpn=h3&pinSHA256=$cert_sha256&sni=$random_cn#${sxname}hy2-$hostname" >> "$HOME/agsbx/jh.txt"
              else
                  # Fallback to insecure if no cert hash
-                 echo "hysteria2://$uuid@$server_ip:$p_port?security=tls&alpn=h3&insecure=1&sni=$random_cn#${sxname}hy2-$hostname" >> "$HOME/agsbx/jh.txt"
+                 echo "hysteria2://$uuid@$server_ip:$p_port?obfs=salamander&obfs-password=${hy2_obfs_pwd}&security=tls&alpn=h3&insecure=1&sni=$random_cn#${sxname}hy2-$hostname" >> "$HOME/agsbx/jh.txt"
              fi
         fi
         
