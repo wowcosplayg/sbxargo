@@ -198,7 +198,7 @@ init_singbox_config() {
     jq -n '{
       log: {
         disabled: false,
-        level: "warn",
+        level: "error",
         timestamp: true
       },
       dns: {
@@ -512,37 +512,40 @@ EOF
 }
 
 configure_singbox_outbound() {
-    local outbounds
-    outbounds="["
-    
-    # Defaults
-    outbounds+="{\"type\": \"direct\", \"tag\": \"direct\"}"
+    # Always add direct outbound
+    jq '.outbounds = [{"type": "direct", "tag": "direct"}]' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
 
-    # Add WARP Native WireGuard Outbound if WARP is used
+    # Add WARP WireGuard using `endpoints` block (Sing-box 1.11+ native WireGuard)
     if [[ "$s1outtag" == *"warp"* ]] || [[ "$s2outtag" == *"warp"* ]]; then
-        outbounds+=$(cat <<EOF
-    ,{
+        local warp_endpoint
+        warp_endpoint=$(cat <<EOF
+    [{
       "type": "wireguard",
       "tag": "warp-out",
-      "server": "162.159.192.1",
-      "server_port": 2408,
-      "local_address": [
+      "address": [
         "172.16.0.2/32",
         "${WARP_IPV6}/128"
       ],
       "private_key": "${WARP_PRIVATE_KEY}",
-      "peer_public_key": "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
-      "reserved": ${WARP_RESERVED}
-    }
+      "peers": [
+        {
+          "address": "${sendip}",
+          "port": 2408,
+          "public_key": "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
+          "allowed_ips": [
+            "0.0.0.0/0",
+            "::/0"
+          ],
+          "reserved": ${WARP_RESERVED}
+        }
+      ]
+    }]
 EOF
 )
+        jq --argjson ep "$warp_endpoint" '.endpoints = $ep' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
     fi
-    outbounds+="]"
-    
-    # Use variable to update outbounds
-    jq --argjson new_out "$outbounds" '.outbounds = $new_out' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
-    
-    # Route rules (Sing-box 1.11+ Rule Action chain)
+
+    # Route rules (matching argosbx.sh: sniff → resolve → ip_cidr → final)
     local route
     route=$(cat <<EOF
     {
@@ -551,21 +554,19 @@ EOF
                 "action": "sniff"
             },
             {
-                "ip_is_private": true,
-                "outbound": "direct"
+                "action": "resolve",
+                "strategy": "${sbyx}"
             },
             {
                 "ip_cidr": [ ${sip} ],
                 "outbound": "${s1outtag}"
             }
         ],
-        "auto_detect_interface": false,
-        "final": "${s2outtag}",
-        "default_domain_resolver": "remote"
+        "final": "${s2outtag}"
     }
 EOF
 )
-     jq --argjson new_route "$route" '.route = $new_route' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
+    jq --argjson new_route "$route" '.route = $new_route' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
 }
 
 start_singbox_service() {

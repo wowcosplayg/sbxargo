@@ -163,7 +163,7 @@ init_xray_config() {
       },
       inbounds: [],
       outbounds: [],
-      routing: { domainStrategy: "AsIs", rules: [] }
+      routing: { domainStrategy: "IPOnDemand", rules: [] }
     }' > "$HOME/agsbx/xr.json"
 }
 
@@ -670,7 +670,7 @@ configure_xray_outbound() {
               \"0.0.0.0/0\",
               \"::/0\"
             ],
-            \"endpoint\": \"162.159.192.1:2408\"
+            \"endpoint\": \"${xendip}:2408\"
           }
         ],
         \"reserved\": ${WARP_RESERVED}
