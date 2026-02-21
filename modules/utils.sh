@@ -764,14 +764,20 @@ generate_all_links() {
         
         if echo "$sb_content" | grep -q 'hy2-sb'; then
              local p_port=$(get_sb_val_for_tag "hy2-sb" ".listen_port")
+             local p_obfs_pwd=$(get_sb_val_for_tag "hy2-sb" ".obfs.password")
+             # URL-encode the obfs password (base64 may contain +/=)
+             local p_obfs_pwd_enc=$(echo -n "$p_obfs_pwd" | jq -sRr @uri)
              random_cn="${cert_cn:-www.bing.com}"
+             
+             local obfs_param=""
+             [ -n "$p_obfs_pwd" ] && obfs_param="obfs=salamander&obfs-password=${p_obfs_pwd_enc}&"
              
              if [ -n "$cert_sha256" ]; then
                  # Use Pinning (Recommended)
-                 echo "hysteria2://$uuid@$server_ip:$p_port?obfs=salamander&obfs-password=${hy2_obfs_pwd}&security=tls&alpn=h3&pinSHA256=$cert_sha256&sni=$random_cn#${sxname}hy2-$hostname" >> "$HOME/agsbx/jh.txt"
+                 echo "hysteria2://$uuid@$server_ip:$p_port?${obfs_param}security=tls&alpn=h3&pinSHA256=$cert_sha256&sni=$random_cn#${sxname}hy2-$hostname" >> "$HOME/agsbx/jh.txt"
              else
                  # Fallback to insecure if no cert hash
-                 echo "hysteria2://$uuid@$server_ip:$p_port?obfs=salamander&obfs-password=${hy2_obfs_pwd}&security=tls&alpn=h3&insecure=1&sni=$random_cn#${sxname}hy2-$hostname" >> "$HOME/agsbx/jh.txt"
+                 echo "hysteria2://$uuid@$server_ip:$p_port?${obfs_param}security=tls&alpn=h3&insecure=1&sni=$random_cn#${sxname}hy2-$hostname" >> "$HOME/agsbx/jh.txt"
              fi
         fi
         
