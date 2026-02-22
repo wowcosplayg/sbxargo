@@ -205,15 +205,28 @@ handle_action() {
             if [ "$argo" = "yes" ]; then
                 kill -15 $(pgrep -f 'agsbx/cloudflared' 2>/dev/null) 2>/dev/null
                 sleep 1
-                if [ -n "$ARGO_AUTH" ] && [ -n "$ARGO_DOMAIN" ]; then
+                # Read fixed tunnel credentials from environment or config.env
+                local _argo_auth="${ARGO_AUTH:-$(grep "^sbargotoken=" "$HOME/agsbx/config.env" 2>/dev/null | cut -d'=' -f2- | tr -d '"'\''')}"
+                local _argo_domain="${ARGO_DOMAIN:-$(grep "^sbargoym=" "$HOME/agsbx/config.env" 2>/dev/null | cut -d'=' -f2- | tr -d '"'\''')}"
+
+                if [ -n "$_argo_auth" ] && [ -n "$_argo_domain" ]; then
                     nohup "$HOME/agsbx/cloudflared" tunnel \
                         --no-autoupdate --edge-ip-version auto --protocol http2 \
-                        run --token "$ARGO_AUTH" > /dev/null 2>&1 &
+                        run --token "$_argo_auth" > /dev/null 2>&1 &
                 elif [ -n "$port_argo_ws" ]; then
                     nohup "$HOME/agsbx/cloudflared" tunnel \
                         --url "http://localhost:${port_argo_ws}" \
                         --edge-ip-version auto --no-autoupdate --protocol http2 \
                         > "$HOME/agsbx/argo.log" 2>&1 &
+                    
+                    sleep 8
+                    local argodomain=$(grep -a trycloudflare.com "$HOME/agsbx/argo.log" 2>/dev/null \
+                        | awk 'NR==2{print}' | awk -F// '{print $2}' | awk '{print $1}')
+                    if [ -n "$argodomain" ]; then
+                        update_config_var "sbargoym" "$argodomain"
+                        log_info "新临时 Argo 域名: $argodomain"
+                        generate_all_links
+                    fi
                 fi
             fi
             check_argo_status
