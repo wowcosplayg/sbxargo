@@ -11,7 +11,7 @@ chmod +x /app/main.sh /app/modules/*.sh
 # This will configure and start services in background (nohup mode)
 if [ -f "$WORKDIR/xr.json" ] || [ -f "$WORKDIR/sb.json" ]; then
     echo "Existing configuration detected. Performing fast start..."
-    /app/main.sh fast_start
+    /app/main.sh service_start
 else
     echo "Starting Argosbx Orchestrator Initial Installation..."
     /app/main.sh install

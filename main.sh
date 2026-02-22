@@ -194,13 +194,38 @@ handle_action() {
             regenerate_config
             log_info "Configuration regenerated (No Restart)."
             ;;
+        service_start)
+            # Docker restart path: config already exists in volume.
+            # Only restart processes — no config regeneration, no HTTP probes.
+            check_system_compatibility
+            load_config
+            start_xray_service
+            start_singbox_service
+            # Restart Argo if enabled — kill any existing cloudflared first
+            if [ "$argo" = "yes" ]; then
+                kill -15 $(pgrep -f 'agsbx/cloudflared' 2>/dev/null) 2>/dev/null
+                sleep 1
+                if [ -n "$ARGO_AUTH" ] && [ -n "$ARGO_DOMAIN" ]; then
+                    nohup "$HOME/agsbx/cloudflared" tunnel \
+                        --no-autoupdate --edge-ip-version auto --protocol http2 \
+                        run --token "$ARGO_AUTH" > /dev/null 2>&1 &
+                elif [ -n "$port_argo_ws" ]; then
+                    nohup "$HOME/agsbx/cloudflared" tunnel \
+                        --url "http://localhost:${port_argo_ws}" \
+                        --edge-ip-version auto --no-autoupdate --protocol http2 \
+                        > "$HOME/agsbx/argo.log" 2>&1 &
+                fi
+            fi
+            check_argo_status
+            log_info "服务进程已重启！"
+            ;;
         fast_start)
+            # Legacy alias — same as service_start for Docker
             check_system_compatibility
             get_server_ip
             regenerate_config
             start_xray_service
             start_singbox_service
-            install_argo_tunnel
             configure_argo_tunnel
             check_argo_status
             log_info "服务核心已快速热重启！"
