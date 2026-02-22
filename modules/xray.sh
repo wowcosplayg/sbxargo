@@ -146,8 +146,7 @@ init_xray_config() {
       dns: {
         servers: [
           "1.1.1.1",
-          "1.0.0.1",
-          "localhost"
+          "8.8.8.8"
         ]
       },
       policy: {
