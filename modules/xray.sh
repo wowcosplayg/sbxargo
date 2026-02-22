@@ -98,8 +98,8 @@ generate_xray_keys() {
         
         if [ -z "$xray_key_private" ] || [ -z "$xray_key_public" ]; then
             key_pair=$("$HOME/agsbx/xray" x25519 2>&1)
-            private_key=$(echo "$key_pair" | grep -i "private" | awk '{print $NF}')
-            public_key=$(echo "$key_pair" | grep -i "public" | awk '{print $NF}')
+            private_key=$(echo "$key_pair" | grep "PrivateKey" | awk '{print $2}')
+            public_key=$(echo "$key_pair" | grep "Password" | awk '{print $2}')
             short_id=$(date +%s%N | sha256sum | cut -c 1-8)
             
             # Persist to config
