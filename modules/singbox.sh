@@ -204,8 +204,7 @@ init_singbox_config() {
       dns: {
         servers: [
             { "type": "udp", "server": "1.1.1.1", "tag": "remote" },
-            { "type": "udp", "server": "8.8.8.8", "tag": "remote-backup" },
-            { "type": "local", "tag": "local" }
+            { "type": "udp", "server": "8.8.8.8", "tag": "remote-backup" }
         ],
         strategy: "prefer_ipv4",
         final: "remote"
@@ -582,7 +581,6 @@ NoNewPrivileges=yes
 LimitNPROC=512000
 LimitNOFILE=512000
 TimeoutStartSec=0
-ExecStartPre=/bin/bash ${BASE_DIR}/main.sh regen_no_restart
 ExecStart=${HOME}/agsbx/sing-box run -c ${HOME}/agsbx/sb.json
 Restart=on-failure
 RestartSec=5s

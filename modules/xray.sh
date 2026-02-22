@@ -725,7 +725,6 @@ NoNewPrivileges=yes
 LimitNPROC=512000
 LimitNOFILE=512000
 TimeoutStartSec=0
-ExecStartPre=/bin/bash ${BASE_DIR}/main.sh regen_no_restart
 ExecStart=${HOME}/agsbx/xray run -c ${HOME}/agsbx/xr.json
 Restart=on-failure
 RestartSec=5s
