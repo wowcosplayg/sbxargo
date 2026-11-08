@@ -11,84 +11,196 @@
 install_singbox_core() {
     log_info "检查 Sing-box 内核..."
     
-    if [ -f "$HOME/agsbx/sing-box" ]; then
-        local ver=$("$HOME/agsbx/sing-box" version 2>/dev/null | awk '/version/{print $NF}')
-        log_info "检测到本地已存在 Sing-box 内核 ($ver)，跳过下载。"
-        return 0
+    local out="$HOME/agsbx/sing-box"
+    if [ -f "$out" ] && [ -x "$out" ]; then
+        local ver=$("$out" version 2>/dev/null | awk '/version/{print $NF}')
+        if [ -n "$ver" ]; then
+            log_info "检测到本地已存在有效的 Sing-box 内核 ($ver)，跳过下载。"
+            return 0
+        fi
+        log_warn "检测到本地 Sing-box 内核异常，将重新下载安装。"
+        rm -f "$out"
     fi
-    
-    # Logic from upsingbox
+
     local archive_pattern=""
+    local fallback_asset_id=""
     case "$cpu" in
-        amd64) archive_pattern="sing-box-.*-linux-amd64" ;;
-        arm64) archive_pattern="sing-box-.*-linux-arm64" ;;
+        amd64) 
+            archive_pattern="sing-box-.*-linux-amd64"
+            fallback_asset_id="671549423"
+            ;;
+        arm64) 
+            archive_pattern="sing-box-.*-linux-arm64"
+            fallback_asset_id="671551412"
+            ;;
         *) log_error "不支持的架构: $cpu"; return 1 ;;
     esac
 
-    # Assuming download_singbox_release is handled here or via similar logic
-    # I'll implement the download logic inline or call a shared one if I moved it.
-    # To be safe, I'll use the logic I saw in sbxargo.sh
-    
     local repo="SagerNet/sing-box"
     local latest_url="https://api.github.com/repos/$repo/releases/latest"
     
-    # 依赖检查：由于我们需要 jq 处理 JSON
     require_jq
     
-    # 获取最新的释放信息 JSON
     local release_json=""
     if command -v curl >/dev/null 2>&1; then
-        release_json=$(curl -fsSL "$latest_url")
+        release_json=$(curl -fsSL --connect-timeout 8 --max-time 15 "$latest_url" 2>/dev/null)
     elif command -v wget >/dev/null 2>&1; then
-        release_json=$(wget -qO- "$latest_url")
+        release_json=$(timeout 15 wget -qO- "$latest_url" 2>/dev/null)
     fi
     
+    local asset_api_url=""
     local download_url=""
+    local asset_name=""
     if [ -n "$release_json" ]; then
-        # 兼容 tar.gz, tar.xz, zip 格式
-        download_url=$(echo "$release_json" | jq -r --arg re "$archive_pattern(\\.tar\\.gz|\\.tar\\.xz|\\.zip)" '.assets[] | select(.name | test($re)) | .browser_download_url' | head -n1)
+        local re_pat="$archive_pattern(\\.tar\\.gz|\\.tar\\.xz|\\.zip)"
+        asset_api_url=$(echo "$release_json" | jq -r --arg re "$re_pat" '.assets[] | select(.name | test($re)) | .url' 2>/dev/null | head -n1)
+        download_url=$(echo "$release_json" | jq -r --arg re "$re_pat" '.assets[] | select(.name | test($re)) | .browser_download_url' 2>/dev/null | head -n1)
+        asset_name=$(echo "$release_json" | jq -r --arg re "$re_pat" '.assets[] | select(.name | test($re)) | .name' 2>/dev/null | head -n1)
+        [ "$asset_api_url" = "null" ] && asset_api_url=""
+        [ "$download_url" = "null" ] && download_url=""
+        [ "$asset_name" = "null" ] && asset_name=""
     fi
 
-    if [ -z "$download_url" ] || [ "$download_url" == "null" ]; then
-        log_error "获取 Sing-box 下载链接失败"
-        return 1
-    fi
-    local out="$HOME/agsbx/sing-box"
     local temp_dir="$HOME/agsbx/temp_sb"
-    
+    rm -rf "$temp_dir"
     mkdir -p "$temp_dir"
-    
-    if command -v curl >/dev/null 2>&1; then
-        curl -Lo "$temp_dir/sb.tar.gz" -# --retry 2 "$download_url"
-    elif command -v wget >/dev/null 2>&1; then
-        timeout 30 wget -O "$temp_dir/sb.tar.gz" --tries=2 "$download_url"
-    fi
-    
-    if [ -f "$temp_dir/sb.tar.gz" ]; then
-        # 兼容不同格式解压
-        if echo "$download_url" | grep -qE '\.tar\.gz$|\.tgz$'; then
-            tar -xzf "$temp_dir/sb.tar.gz" -C "$temp_dir"
-        elif echo "$download_url" | grep -qE '\.tar\.xz$'; then
-            tar -xJf "$temp_dir/sb.tar.gz" -C "$temp_dir"
-        elif echo "$download_url" | grep -qE '\.zip$'; then
-            unzip -q "$temp_dir/sb.tar.gz" -d "$temp_dir"
+    local archive_file="$temp_dir/sb_archive"
+    local downloaded=false
+
+    # Helper function to verify downloaded archive integrity
+    verify_archive() {
+        local file="$1"
+        [ -f "$file" ] || return 1
+        local size=$(wc -c < "$file" 2>/dev/null || echo 0)
+        [ "$size" -gt 2000000 ] || return 1
+        if echo "$asset_name" | grep -qE '\.tar\.gz$|\.tgz$' || tar -tzf "$file" >/dev/null 2>&1; then
+            tar -tzf "$file" >/dev/null 2>&1 || return 1
+        elif echo "$asset_name" | grep -qE '\.tar\.xz$'; then
+            tar -tJf "$file" >/dev/null 2>&1 || return 1
+        elif echo "$asset_name" | grep -qE '\.zip$'; then
+            unzip -tq "$file" >/dev/null 2>&1 || return 1
         fi
-        
+        return 0
+    }
+
+    # Tier 1: GitHub API Stream (bypasses GitHub 504 gateway timeout, direct to Azure/Fastly)
+    if [ -n "$asset_api_url" ]; then
+        log_info "正在通过 GitHub API 流下载最新 Sing-box..."
+        if command -v curl >/dev/null 2>&1; then
+            curl -fL -sS --connect-timeout 10 --max-time 180 --retry 2 \
+                 -H "Accept: application/octet-stream" \
+                 -o "$archive_file" "$asset_api_url" 2>/dev/null
+        fi
+        if verify_archive "$archive_file"; then
+            downloaded=true
+            log_info "Sing-box 压缩包下载成功 (GitHub API Stream)"
+        else
+            rm -f "$archive_file"
+        fi
+    fi
+
+    # Tier 2: Official browser release download URL
+    if [ "$downloaded" = false ] && [ -n "$download_url" ]; then
+        log_info "尝试官方 Release 链接下载 Sing-box..."
+        if command -v curl >/dev/null 2>&1; then
+            curl -fL -sS --connect-timeout 10 --max-time 180 --retry 2 \
+                 -o "$archive_file" "$download_url" 2>/dev/null
+        elif command -v wget >/dev/null 2>&1; then
+            timeout 180 wget -q -O "$archive_file" --tries=2 "$download_url" 2>/dev/null
+        fi
+        if verify_archive "$archive_file"; then
+            downloaded=true
+            log_info "Sing-box 压缩包下载成功 (Official Release)"
+        else
+            rm -f "$archive_file"
+        fi
+    fi
+
+    # Tier 3: Known GitHub proxy / acceleration mirrors
+    if [ "$downloaded" = false ] && [ -n "$download_url" ]; then
+        for mirror in "https://ghproxy.net/" "https://gh-proxy.com/"; do
+            log_info "尝试加速镜像下载 Sing-box ($mirror)..."
+            if command -v curl >/dev/null 2>&1; then
+                curl -fL -sS --connect-timeout 10 --max-time 180 --retry 1 \
+                     -o "$archive_file" "${mirror}${download_url}" 2>/dev/null
+            elif command -v wget >/dev/null 2>&1; then
+                timeout 180 wget -q -O "$archive_file" --tries=1 "${mirror}${download_url}" 2>/dev/null
+            fi
+            if verify_archive "$archive_file"; then
+                downloaded=true
+                log_info "Sing-box 压缩包下载成功 (Mirror: $mirror)"
+                break
+            else
+                rm -f "$archive_file"
+            fi
+        done
+    fi
+
+    # Extraction
+    if [ "$downloaded" = true ] && [ -f "$archive_file" ]; then
+        if echo "$asset_name" | grep -qE '\.tar\.gz$|\.tgz$' || tar -tzf "$archive_file" >/dev/null 2>&1; then
+            tar -xzf "$archive_file" -C "$temp_dir" 2>/dev/null
+        elif echo "$asset_name" | grep -qE '\.tar\.xz$'; then
+            tar -xJf "$archive_file" -C "$temp_dir" 2>/dev/null
+        elif echo "$asset_name" | grep -qE '\.zip$'; then
+            unzip -q "$archive_file" -d "$temp_dir" 2>/dev/null
+        else
+            tar -xzf "$archive_file" -C "$temp_dir" 2>/dev/null || unzip -q "$archive_file" -d "$temp_dir" 2>/dev/null
+        fi
         local bin_path=$(find "$temp_dir" -type f -name 'sing-box' | head -n1)
         if [ -n "$bin_path" ]; then
-            mv "$bin_path" "$out"
-            chmod +x "$out"
-            rm -rf "$temp_dir"
-        else
-            log_error "解压失败，未找到 sing-box 文件。"
-            rm -rf "$temp_dir"
-            return 1
+            chmod +x "$bin_path"
+            if "$bin_path" version >/dev/null 2>&1; then
+                mv "$bin_path" "$out"
+                chmod +x "$out"
+            fi
         fi
-        local ver=$("$out" version 2>/dev/null | awk '/version/{print $NF}')
-        log_info "已安装 Sing-box 内核: $ver"
-    else
-        log_error "Sing-box 下载失败"
+    fi
+
+    # Tier 4: Fallback to standalone pre-compiled binary
+    if [ ! -f "$out" ] || ! "$out" version >/dev/null 2>&1; then
+        log_warn "压缩包解压或验证未成功，启动备用预编译二进制下载..."
         rm -rf "$temp_dir"
+        mkdir -p "$temp_dir"
+        local fallback_bin="$temp_dir/sing-box"
+
+        # 4a. Via GitHub API stream for argosbx prebuilt asset
+        if [ -n "$fallback_asset_id" ] && command -v curl >/dev/null 2>&1; then
+            curl -fL -sS --connect-timeout 10 --max-time 120 --retry 2 \
+                 -H "Accept: application/octet-stream" \
+                 -o "$fallback_bin" "https://api.github.com/repos/yonggekkk/argosbx/releases/assets/$fallback_asset_id" 2>/dev/null
+        fi
+
+        # 4b. Via direct URL or mirror
+        if [ ! -f "$fallback_bin" ] || [ $(wc -c < "$fallback_bin" 2>/dev/null || echo 0) -lt 2000000 ]; then
+            local fb_url="https://github.com/yonggekkk/argosbx/releases/download/argosbx/sing-box-$cpu"
+            if command -v curl >/dev/null 2>&1; then
+                curl -fL -sS --connect-timeout 10 --max-time 120 --retry 2 -o "$fallback_bin" "$fb_url" 2>/dev/null || \
+                curl -fL -sS --connect-timeout 10 --max-time 120 --retry 1 -o "$fallback_bin" "https://ghproxy.net/$fb_url" 2>/dev/null
+            elif command -v wget >/dev/null 2>&1; then
+                timeout 120 wget -q -O "$fallback_bin" --tries=2 "$fb_url" 2>/dev/null || \
+                timeout 120 wget -q -O "$fallback_bin" --tries=1 "https://ghproxy.net/$fb_url" 2>/dev/null
+            fi
+        fi
+
+        if [ -f "$fallback_bin" ] && [ $(wc -c < "$fallback_bin" 2>/dev/null || echo 0) -gt 2000000 ]; then
+            chmod +x "$fallback_bin"
+            if "$fallback_bin" version >/dev/null 2>&1; then
+                mv "$fallback_bin" "$out"
+                chmod +x "$out"
+            fi
+        fi
+    fi
+
+    rm -rf "$temp_dir"
+
+    # Final verification
+    if [ -f "$out" ] && [ -x "$out" ] && "$out" version >/dev/null 2>&1; then
+        local ver=$("$out" version 2>/dev/null | awk '/version/{print $NF}')
+        log_info "已成功安装 Sing-box 内核: $ver"
+        return 0
+    else
+        log_error "Sing-box 内核安装失败，所有镜像与备用源均不可用。"
         return 1
     fi
 }

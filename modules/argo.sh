@@ -10,25 +10,93 @@
 
 install_argo_core() {
     log_info "检查 Argo 环境..."
-    if [ ! -e "$HOME/agsbx/cloudflared" ]; then
-        if command -v curl >/dev/null 2>&1; then
-            argocore=$(curl -Ls https://data.jsdelivr.com/v1/package/gh/cloudflare/cloudflared | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
-        else
-            argocore=$(wget -qO- https://data.jsdelivr.com/v1/package/gh/cloudflare/cloudflared | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
+    local out="$HOME/agsbx/cloudflared"
+    if [ -f "$out" ] && [ -x "$out" ]; then
+        if "$out" --version >/dev/null 2>&1; then
+            local cf_ver=$("$out" --version 2>/dev/null | awk '{print $3}')
+            log_info "检测到本地已存在有效的 Cloudflared 内核 ($cf_ver)，跳过下载。"
+            return 0
         fi
-        log_info "下载 Cloudflared-argo 最新正式版内核：$argocore"
-        
-        local url="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$cpu"
-        local out="$HOME/agsbx/cloudflared"
-        
-        if command -v curl >/dev/null 2>&1; then
-            curl -Lo "$out" -# --retry 2 "$url"
-        elif command -v wget >/dev/null 2>&1; then
-            timeout 30 wget -O "$out" --tries=2 "$url"
-        fi
-        
-        chmod +x "$HOME/agsbx/cloudflared"
+        log_warn "检测到本地 Cloudflared 内核异常，将重新下载安装。"
+        rm -f "$out"
     fi
+
+    log_info "下载 Cloudflared-argo 核心..."
+    require_jq
+
+    local repo="cloudflare/cloudflared"
+    local latest_url="https://api.github.com/repos/$repo/releases/latest"
+    local release_json=""
+    if command -v curl >/dev/null 2>&1; then
+        release_json=$(curl -fsSL --connect-timeout 8 --max-time 15 "$latest_url" 2>/dev/null)
+    elif command -v wget >/dev/null 2>&1; then
+        release_json=$(timeout 15 wget -qO- "$latest_url" 2>/dev/null)
+    fi
+
+    local target_name="cloudflared-linux-$cpu"
+    local asset_api_url=""
+    local download_url=""
+    if [ -n "$release_json" ]; then
+        asset_api_url=$(echo "$release_json" | jq -r --arg n "$target_name" '.assets[] | select(.name == $n) | .url' 2>/dev/null | head -n1)
+        download_url=$(echo "$release_json" | jq -r --arg n "$target_name" '.assets[] | select(.name == $n) | .browser_download_url' 2>/dev/null | head -n1)
+        [ "$asset_api_url" = "null" ] && asset_api_url=""
+        [ "$download_url" = "null" ] && download_url=""
+    fi
+    [ -z "$download_url" ] && download_url="https://github.com/cloudflare/cloudflared/releases/latest/download/$target_name"
+
+    local temp_bin="$HOME/agsbx/cloudflared.tmp"
+    rm -f "$temp_bin"
+
+    # Tier 1: GitHub API stream (bypasses GitHub 504 gateway timeout, direct to Azure/Fastly)
+    if [ -n "$asset_api_url" ] && command -v curl >/dev/null 2>&1; then
+        log_info "正在通过 GitHub API 流下载 Cloudflared..."
+        curl -fL -sS --connect-timeout 10 --max-time 180 --retry 2 \
+             -H "Accept: application/octet-stream" \
+             -o "$temp_bin" "$asset_api_url" 2>/dev/null
+    fi
+
+    # Tier 2: Official browser release download
+    if [ ! -f "$temp_bin" ] || [ $(wc -c < "$temp_bin" 2>/dev/null || echo 0) -lt 5000000 ]; then
+        rm -f "$temp_bin"
+        log_info "尝试官方 Release 链接下载 Cloudflared..."
+        if command -v curl >/dev/null 2>&1; then
+            curl -fL -sS --connect-timeout 10 --max-time 180 --retry 2 -o "$temp_bin" "$download_url" 2>/dev/null
+        elif command -v wget >/dev/null 2>&1; then
+            timeout 180 wget -q -O "$temp_bin" --tries=2 "$download_url" 2>/dev/null
+        fi
+    fi
+
+    # Tier 3: Mirrors
+    if [ ! -f "$temp_bin" ] || [ $(wc -c < "$temp_bin" 2>/dev/null || echo 0) -lt 5000000 ]; then
+        rm -f "$temp_bin"
+        for mirror in "https://ghproxy.net/" "https://gh-proxy.com/"; do
+            log_info "尝试加速镜像下载 Cloudflared ($mirror)..."
+            if command -v curl >/dev/null 2>&1; then
+                curl -fL -sS --connect-timeout 10 --max-time 180 --retry 1 -o "$temp_bin" "${mirror}${download_url}" 2>/dev/null
+            elif command -v wget >/dev/null 2>&1; then
+                timeout 180 wget -q -O "$temp_bin" --tries=1 "${mirror}${download_url}" 2>/dev/null
+            fi
+            if [ -f "$temp_bin" ] && [ $(wc -c < "$temp_bin" 2>/dev/null || echo 0) -gt 5000000 ]; then
+                break
+            fi
+            rm -f "$temp_bin"
+        done
+    fi
+
+    if [ -f "$temp_bin" ] && [ $(wc -c < "$temp_bin" 2>/dev/null || echo 0) -gt 5000000 ]; then
+        chmod +x "$temp_bin"
+        if "$temp_bin" --version >/dev/null 2>&1; then
+            mv "$temp_bin" "$out"
+            chmod +x "$out"
+            local cf_ver=$("$out" --version 2>/dev/null | awk '{print $3}')
+            log_info "已成功安装 Cloudflared 内核: $cf_ver"
+            return 0
+        fi
+    fi
+
+    rm -f "$temp_bin"
+    log_error "Cloudflared 下载或校验失败"
+    return 1
 }
 
 disable_argo_core() {

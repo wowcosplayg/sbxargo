@@ -43,7 +43,7 @@ check_system_compatibility() {
 
 install_dependencies() {
     log_info "检查并安装依赖..."
-    local deps="curl unzip jq"
+    local deps="curl unzip jq tar"
     
     # Simple check function
     check_cmd() { command -v "$1" >/dev/null 2>&1; }
@@ -174,11 +174,15 @@ download_file() {
 
     log_info "$description: $url"
 
-    if curl -Lo "$output" -# --retry 3 --retry-delay 2 "$url" 2>&1 | tee -a "$HOME/agsbx/argosbx.log" >/dev/null; then
+    if curl -fL -sS --retry 3 --retry-delay 2 --connect-timeout 10 -o "$output" "$url" 2>&1 | tee -a "$HOME/agsbx/argosbx.log" >/dev/null; then
         log_info "下载成功: $output"
+        return 0
+    elif command -v wget >/dev/null 2>&1 && timeout 60 wget -q -O "$output" --tries=2 "$url"; then
+        log_info "下载成功 (wget): $output"
         return 0
     else
         log_error "下载失败"
+        rm -f "$output"
         return 1
     fi
 }
