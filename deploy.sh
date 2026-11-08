@@ -61,6 +61,14 @@ if [[ "$deploy_method" == "2" ]]; then
         systemctl enable docker
     fi
     
+    # Check Host Network / UDP Buffer for optimal UDP (Hysteria2/Tuic) performance
+    local host_rmem=$(sysctl -n net.core.rmem_max 2>/dev/null || echo 0)
+    if [ -n "$host_rmem" ] && [ "$host_rmem" -lt 8388608 ]; then
+        log_warn "检测到宿主机 UDP 接收缓冲区较小 (${host_rmem} 字节)。"
+        log_warn "若使用 Hysteria2 / Tuic 等 UDP 协议，建议在宿主机执行以下命令以防大流量丢包："
+        echo "  sysctl -w net.core.rmem_max=8388608 net.core.wmem_max=8388608"
+    fi
+    
     # Build Image
     log_info "检查 Docker 镜像..."
     if docker image inspect argosbx-image >/dev/null 2>&1; then

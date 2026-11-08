@@ -228,6 +228,18 @@ add_hysteria2_singbox() {
     log_info "添加 Hysteria2: $port_hy2"
     open_port "$port_hy2" "udp"
     
+    local obfs_block=""
+    if [ "$hy2_obfs" != "no" ]; then
+        obfs_block=$(cat <<EOF
+,
+        "obfs": {
+            "type": "salamander",
+            "password": "${hy2_obfs_pwd}"
+        }
+EOF
+)
+    fi
+
     local json_block
     json_block=$(cat <<EOF
     {
@@ -240,11 +252,7 @@ add_hysteria2_singbox() {
                 "password": "${uuid}"
             }
         ],
-        "ignore_client_bandwidth": false,
-        "obfs": {
-            "type": "salamander",
-            "password": "${hy2_obfs_pwd}"
-        },
+        "ignore_client_bandwidth": false${obfs_block},
         "tls": {
             "enabled": true,
             "alpn": [
@@ -289,6 +297,8 @@ add_tuic_singbox() {
                 }
             ],
             "congestion_control": "bbr",
+            "zero_rtt_handshake": true,
+            "heartbeat": "10s",
 
             "tls":{
                 "enabled": true,
@@ -395,6 +405,19 @@ add_shadowsocks_singbox() {
     log_info "添加 Shadowsocks: $port_ss"
     open_port "$port_ss" "tcp/udp"
     
+    local chosen_method="${ss_method}"
+    if [ -z "$chosen_method" ]; then
+        if grep -q -E 'aes' /proc/cpuinfo 2>/dev/null; then
+            chosen_method="2022-blake3-aes-256-gcm"
+        elif [ "$cpu" = "arm64" ]; then
+            chosen_method="2022-blake3-chacha20-poly1305"
+        else
+            chosen_method="2022-blake3-aes-256-gcm"
+        fi
+    fi
+    update_config_var "ss_method" "$chosen_method"
+    log_info "Shadowsocks 加密算法: $chosen_method"
+
     local json_block
     json_block=$(cat <<EOF
         {
@@ -402,7 +425,7 @@ add_shadowsocks_singbox() {
             "tag":"ss-2022",
             "listen": "::",
             "listen_port": $port_ss,
-            "method": "2022-blake3-aes-256-gcm",
+            "method": "$chosen_method",
             "password": "$sskey",
             "multiplex": {
                 "enabled": true,
@@ -521,6 +544,7 @@ configure_singbox_outbound() {
     [{
       "type": "wireguard",
       "tag": "warp-out",
+      "mtu": 1280,
       "address": [
         "172.16.0.2/32",
         "${WARP_IPV6}/128"
@@ -544,9 +568,24 @@ EOF
         jq --argjson ep "$warp_endpoint" '.endpoints = $ep' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
     fi
 
-    # Route rules (matching argosbx.sh: sniff → resolve → ip_cidr → final)
+    # Route rules (optimized: only resolve if outbound targets differ by IP)
     local route
-    route=$(cat <<EOF
+    if [ "$s1outtag" = "$s2outtag" ]; then
+        # All traffic goes to same destination (direct or warp-out) — skip unnecessary DNS resolution delay
+        route=$(cat <<EOF
+    {
+        "rules": [
+            {
+                "action": "sniff"
+            }
+        ],
+        "final": "${s2outtag}"
+    }
+EOF
+)
+    else
+        # Split traffic (e.g. s4/s6) requires DNS resolution to match IP CIDRs
+        route=$(cat <<EOF
     {
         "rules": [
             {
@@ -565,6 +604,7 @@ EOF
     }
 EOF
 )
+    fi
     jq --argjson new_route "$route" '.route = $new_route' "$HOME/agsbx/sb.json" > "$HOME/agsbx/sb.json.tmp" && mv "$HOME/agsbx/sb.json.tmp" "$HOME/agsbx/sb.json"
 }
 

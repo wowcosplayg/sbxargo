@@ -141,8 +141,12 @@ net.ipv4.tcp_congestion_control=bbr
 net.ipv4.ip_forward=1
 net.core.rmem_max=26214400
 net.core.wmem_max=26214400
+net.core.rmem_default=262144
+net.core.wmem_default=262144
 net.ipv4.tcp_rmem=4096 87380 26214400
 net.ipv4.tcp_wmem=4096 16384 26214400
+net.ipv4.udp_rmem_min=16384
+net.ipv4.udp_wmem_min=16384
 net.ipv4.tcp_mtu_probing=1
 EOF
         sysctl -p /etc/sysctl.d/99-argosbx.conf >/dev/null 2>&1

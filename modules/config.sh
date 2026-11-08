@@ -59,6 +59,11 @@ init_config() {
     export name=${name:-''}
     export oap=${oap:-''}
     
+    # Performance & Optimization presets
+    export PERF_MODE=${PERF_MODE:-auto}
+    export hy2_obfs=${hy2_obfs:-yes}
+    export ss_method=${ss_method:-''}
+    
     # URLs
     export v46url="https://icanhazip.com"
     export agsbxurl="https://raw.githubusercontent.com/wowcosplayg/sbxargo/main/sbxargo.sh"

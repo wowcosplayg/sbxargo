@@ -140,8 +140,31 @@ generate_xray_keys() {
 init_xray_config() {
     require_jq
     
+    # Calculate optimal buffer size based on system memory or PERF_MODE
+    local optimal_buf=512
+    case "${PERF_MODE:-auto}" in
+        high_throughput|high) optimal_buf=1024 ;;
+        low_memory|low)       optimal_buf=128 ;;
+        *)
+            local total_mem_kb=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
+            if [ -n "$total_mem_kb" ]; then
+                local total_mem_mb=$((total_mem_kb / 1024))
+                if [ "$total_mem_mb" -lt 512 ]; then
+                    optimal_buf=128
+                elif [ "$total_mem_mb" -lt 1500 ]; then
+                    optimal_buf=512
+                else
+                    optimal_buf=1024
+                fi
+            else
+                optimal_buf=512
+            fi
+            ;;
+    esac
+    log_info "Xray 连接缓冲池自适应优化: ${optimal_buf} KB"
+
     # Init base config using jq
-    jq -n '{
+    jq -n --argjson buf "$optimal_buf" '{
       log: { loglevel: "error" },
       dns: {
         servers: [
@@ -152,11 +175,11 @@ init_xray_config() {
       policy: {
         levels: {
           "0": {
-            "handshake": 4,
+            "handshake": 10,
             "connIdle": 300,
             "uplinkOnly": 2,
             "downlinkOnly": 5,
-            "bufferSize": 4
+            "bufferSize": $buf
           }
         }
       },
@@ -210,9 +233,10 @@ add_reality_xray() {
             }
         },
       "sniffing": {
-      "enabled": true,
-      "destOverride": ["http", "tls", "quic"],
-      "metadataOnly": false
+        "enabled": true,
+        "destOverride": ["http", "tls"],
+        "metadataOnly": false,
+        "routeOnly": true
       }
     }
 EOF
@@ -271,7 +295,8 @@ add_xhttp_xray() {
       "sniffing": {
         "enabled": true,
         "destOverride": ["http", "tls", "quic"],
-        "metadataOnly": false
+        "metadataOnly": false,
+        "routeOnly": true
       }
     }
 EOF
@@ -341,7 +366,8 @@ EOF
         "sniffing": {
         "enabled": true,
         "destOverride": ["http", "tls", "quic"],
-        "metadataOnly": false
+        "metadataOnly": false,
+        "routeOnly": true
       }
     }
 EOF
@@ -414,7 +440,8 @@ EOF
         "sniffing": {
         "enabled": true,
         "destOverride": ["http", "tls", "quic"],
-        "metadataOnly": false
+        "metadataOnly": false,
+        "routeOnly": true
       }
     }
 EOF
@@ -498,9 +525,10 @@ EOF
                 }${tls_block}
         },
             "sniffing": {
-            "enabled": true,
-            "destOverride": ["http", "tls", "quic"],
-            "metadataOnly": false
+              "enabled": true,
+              "destOverride": ["http", "tls", "quic"],
+              "metadataOnly": false,
+              "routeOnly": true
             }
          }
 EOF
@@ -549,7 +577,8 @@ add_argo_inbound_xray() {
           "sniffing": {
             "enabled": true,
             "destOverride": ["http", "tls", "quic"],
-            "metadataOnly": false
+            "metadataOnly": false,
+            "routeOnly": true
           }
         }
 EOF
@@ -579,7 +608,8 @@ EOF
             "sniffing": {
                 "enabled": true,
                 "destOverride": ["http", "tls", "quic"],
-                "metadataOnly": false
+                "metadataOnly": false,
+                "routeOnly": true
             }
         }
 EOF
@@ -626,9 +656,10 @@ add_socks_xray() {
             "udp": true
           },
             "sniffing": {
-            "enabled": true,
-            "destOverride": ["http", "tls", "quic"],
-            "metadataOnly": false
+              "enabled": true,
+              "destOverride": ["http", "tls", "quic"],
+              "metadataOnly": false,
+              "routeOnly": true
             }
          }
 EOF
@@ -658,6 +689,7 @@ configure_xray_outbound() {
       \"protocol\": \"wireguard\",
       \"settings\": {
         \"secretKey\": \"${WARP_PRIVATE_KEY}\",
+        \"mtu\": 1280,
         \"address\": [
           \"172.16.0.2/32\",
           \"${WARP_IPV6}/128\"
